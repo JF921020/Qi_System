@@ -1,0 +1,135 @@
+# =========================
+
+# Python / Django
+
+# =========================
+
+**pycache**/
+*.py[cod]
+*$py.class
+*.so
+
+# Python virtual environment
+
+venv/
+.venv/
+env/
+ENV/
+
+# Django
+
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+staticfiles/
+media/
+
+# =========================
+
+# Environment variables
+
+# =========================
+
+.env
+.env.*
+!.env.example
+
+# =========================
+
+# Vue / Node.js
+
+# =========================
+
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# npm
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+
+# Vite
+
+# =========================
+
+.vite/
+
+# =========================
+
+# Testing / Coverage
+
+# =========================
+
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+
+# =========================
+
+# Python tools
+
+# =========================
+
+.mypy_cache/
+.ruff_cache/
+.cache/
+
+# =========================
+
+# IDE
+
+# =========================
+
+.vscode/
+.idea/
+*.iml
+
+# =========================
+
+# OS
+
+# =========================
+
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =========================
+
+# Temporary files
+
+# =========================
+
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# =========================
+
+# Docker local overrides
+
+# =========================
+
+docker-compose.override.yml
+
+# =========================
+
+# Database backup / dump
+
+# =========================
+
+*.sql
+*.sqlite
+*.sqlite3
+*.dump
+*.bak

@@ -1,0 +1,596 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>Qi無線充電預測工具_TWS (相容定位功能)</title>
+    <link rel="stylesheet" href="{% static 'calculator/qi-tool.css' %}">
+</head>
+<body data-calculate-url="{% url 'calculator:calculate' %}">
+{% csrf_token %}
+{{ curves|json_script:"qi-curves" }}
+
+<!-- ─── 欄 1: 側邊導航 ─── -->
+<div class="nav-sidebar">
+    <div class="nav-brand">⚡ Qi無線充電預測工具_TWS (相容定位功能)</div>
+    <ul class="nav-menu">
+        <li id="tab-calc" class="nav-item tab-btn active" onclick="switchDisplayTab('calc')">⚡ 效能計算</li>
+        <li id="tab-layout" class="nav-item tab-btn" onclick="switchDisplayTab('layout')">📐 空間架構</li>
+        <li id="tab-qi2" class="nav-item tab-btn" onclick="switchDisplayTab('qi2')">🧲 相容Qi 2定位</li>
+        <li id="tab-history" class="nav-item tab-btn" onclick="switchDisplayTab('history')">💾 歷史數據</li>
+        <li id="tab-advisor" class="nav-item tab-btn" onclick="switchDisplayTab('advisor')">🧠 智慧反推</li>
+    </ul>
+    <div class="nav-footer">
+        <button type="button" class="btn-calc" onclick="triggerCalc()">▶ 立即計算</button>
+        <p id="calcStatus" role="status" aria-live="polite" style="padding:0 12px;color:#cbd5e1;font-size:12px;">等待計算</p>
+    </div>
+    <div class="nav-spacer"></div>
+</div>
+
+<!-- ─── 主工作區 ─── -->
+<div class="workspace-layout">
+    <div class="top-navbar">
+        <div class="breadcrumb">WORKSPACE &gt; <span>Qi 無線充電預測工具 (標準工程版)</span></div>
+        <div style="font-size:0.85em; font-weight:700; color:var(--primary);">標準充電規範模式</div>
+    </div>
+
+    <!-- 效率公式橫幅：預設收合為3D灰色摘要方塊，點擊展開細項；寬度對齊下方參數欄總寬 -->
+    <div class="eff-banner-wrap" style="display:flex; align-items:center; gap:10px;">
+        <div id="effBannerCollapsed" class="eff-banner-collapsed" onclick="toggleEffBanner()">
+            <span id="effBannerCaret" class="eff-banner-caret">▸</span>
+            <span class="eff-banner-summary-label">系統總效率</span>
+            <span id="effBannerSummaryVal" class="eff-banner-summary-val">--%</span>
+            <span class="eff-banner-hint">點擊展開各階效率明細</span>
+        </div>
+        <div id="effBannerExpanded" class="eff-top-banner" onclick="toggleEffBanner()">
+            <div class="eff-grid-cell"><div id="sysBadgeLarge" class="eff-box eff-box-clickable" title="點擊查看效能損耗明細" onclick="switchDisplayTab('advisor'); switchAdvisorTab('diag'); event.stopPropagation();" style="background:#1e293b;">--%</div><div class="eff-label">系統總效率</div></div>
+            <div class="eff-op" style="left:306px;">🟰</div>
+            <div class="eff-grid-cell"><div id="rxIcBadgeLarge" class="eff-box" style="background:var(--ic-purple);">85%</div><div class="eff-label">Rx IC 效率</div></div>
+            <div class="eff-op" style="left:618px;">✖</div>
+            <div class="eff-grid-cell"><div id="chargerIcBadgeLarge" class="eff-box" style="background:var(--ic-teal);">92%</div><div class="eff-label">Charger IC 效率</div></div>
+            <div class="eff-op" style="left:930px;">✖</div>
+            <div class="eff-grid-cell"><div id="effBadgeLarge" class="eff-box" style="background:var(--eff-orange);">--%</div><div class="eff-label">線圈效率 (Coil)</div></div>
+        </div>
+    </div>
+
+    <div id="effUpdateStatus" role="status" aria-live="polite" style="min-height:18px;padding:0 16px;color:#64748b;font-size:12px;"></div>
+    <div class="main-content-split">
+        <!-- ─── 欄 2: 分類參數設定輸入窗格（多欄並排） ─── -->
+        <div class="param-panel-wrap">
+        <div class="param-panel">
+
+                <!-- a. 電器規格 Pane -->
+                <div id="pane-elec" class="section-pane pane-visible">
+                    <div class="pane-col-header" style="border-top: 4px solid var(--bat-green);">⚡ a. 電器規格設定 (Electrical Spec)</div>
+                    <div class="pane-col-body">
+                    <div class="card" style="border-left: 3px solid var(--bat-green);">
+                        <h5>🔋 電池電氣參數 (Battery Spec)</h5>
+                        <div class="ic-tip" style="border-left-color: var(--bat-green); margin-bottom:8px;">✅ 以下6項為Rx IC / Charger IC效率曲線查表所需的完整電氣參數（容量→功率→電壓→電流→倍率→時數，依計算因果順序排列）。</div>
+
+                        <!-- 1. 電池額定容量 (Capacity, mAh) -->
+                        <div class="form-group">
+                            <label>1. 電池額定容量 <span class="sub-note">(Capacity, mAh)</span>:</label>
+                            <input type="number" id="batCapacity" class="form-control" value="400">
+                        </div>
+
+                        <!-- 2. 充電瓦特數 (Power, W) -->
+                        <div class="form-group">
+                            <label>2. 充電瓦特數 <span class="sub-note">(Power, W)</span>:</label>
+                            <input type="number" id="sysPower" class="form-control" value="2.5" step="0.1">
+                        </div>
+
+                        <!-- 3. 充電電壓 (Voltage, V) -->
+                        <div class="form-group">
+                            <label>3. 充電電壓 <span class="sub-note">(Voltage, V)</span>:</label>
+                            <input type="number" id="batVoltage" class="form-control" value="3.70" step="0.05">
+                        </div>
+
+                        <!-- 4. 充電電流 (Current, A / mA) -->
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label>4. 充電電流 <span class="sub-note">(A)</span>:</label>
+                                <input type="number" id="chargeCurrentA" class="form-control" value="0.40" step="0.01">
+                            </div>
+                            <div class="form-group">
+                                <label>充電電流 <span class="sub-note">(mA)</span>:</label>
+                                <input type="number" id="chargeCurrentmA" class="form-control" value="400" step="10">
+                            </div>
+                        </div>
+
+                        <!-- 5. 充電倍率 (C-rate) -->
+                        <div class="form-group">
+                            <label>5. 充電倍率 <span class="sub-note">(C-rate)</span>:</label>
+                            <input type="number" id="batMaxC" class="form-control" value="1.0" step="0.1">
+                        </div>
+
+                        <!-- 6. 充電時數要求 -->
+                        <div class="form-group">
+                            <label>6. 充電時數要求 <span class="sub-note">(Charging Time, CC-CV hr)</span>:</label>
+                            <input type="number" id="targetChargeTimeHr" class="form-control" value="1.5" step="0.1">
+                        </div>
+                    </div>
+
+                    <div class="card" style="border-left: 3px solid var(--warning);">
+                        <h5>🛡️ 機構環境 & 輔助參數</h5>
+                        <div class="form-group">
+                            <label>外殼材質 (Case Material):</label>
+                            <select id="caseMaterial" class="form-control">
+                                <option value="pc_abs" selected>PC+ABS 塑料外殼</option>
+                                <option value="aluminum">鋁合金金屬外殼 (強制包邊)</option>
+                                <option value="zinc">鋅合金外殼</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>電池儲能 <span class="sub-note">(Energy, Wh)</span>:</label>
+                            <input type="text" id="batEnergyWh" class="form-control" value="1.480 Wh" disabled style="background:#f8fafc;">
+                        </div>
+                        <div class="form-group" style="border-top: 1px dashed #e2e8f0; padding-top: 6px; margin-top: 4px;">
+                            <label>應用場景公版速選 <span class="sub-note">(選填快速套用，不影響查表所需6項)</span>:</label>
+                            <select id="batScenarioSelect" class="form-control">
+                                <option value="ultraslim">🔋 [超輕薄入門] 250mAh / 3.70V / 0.5C (0.925Wh)</option>
+                                <option value="standard" selected>🔋 [標準入門] 400mAh / 3.70V / 1C (1.48Wh)</option>
+                                <option value="flagship">🔋 [旗艦快充] 510mAh / 3.85V / 2C (1.96Wh)</option>
+                                <option value="smartbox">🔋 [智慧螢幕] 750mAh / 3.85V / 1.5C (2.88Wh)</option>
+                                <option value="custom">⚙️ 自訂工程規格</option>
+                            </select>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+
+                <!-- b. 接收晶片 Pane -->
+                <div id="pane-rx" class="section-pane">
+                    <div class="pane-col-header" style="border-top: 4px solid var(--ic-purple);">🔌 b. 接收晶片 (Rx IC) 選擇</div>
+                    <div class="pane-col-body">
+                    <div class="card" style="border-left: 3px solid var(--ic-purple);">
+                        <h5>🔌 接收端晶片 (Rx IC)</h5>
+                        <div class="form-group">
+                            <label>型號選擇:</label>
+                            <select id="rxIcSelect" class="form-control">
+                                <option value="cps4019" selected>易沖 CPS4019 (-T00C/-0W0M) [✅ Efficiency Curve 已建立]</option>
+                                <option value="p9225">Renesas P9225-RAHGI8 [✅ Efficiency Curve 已建立]</option>
+                                <option value="cv8045d">ST CV8045D-05DB (待補 Efficiency Curve)</option>
+                                <option value="ip6831">英集芯 IP6831 (待補 Efficiency Curve)</option>
+                                <option value="custom">⚙️ 自訂效率</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>轉換效率 (%):</label>
+                            <input type="text" id="rxIcEff" class="form-control" value="85.0" disabled>
+                        </div>
+                        <div id="rxTip" class="ic-tip">💡 建議：[主流 Rx IC] 易沖 CPS4019 負責線圈能量接收。</div>
+                        <button type="button" class="btn-calc" style="background:#334155; margin-top:10px; font-size:0.85em;" onclick="openDigitizer('rx')">➕ 新增自訂型號 (上傳Efficiency Curve JPG並數位化)</button>
+                    </div>
+                    </div>
+                </div>
+
+                <!-- c. 充電晶片 Pane -->
+                <div id="pane-charger" class="section-pane">
+                    <div class="pane-col-header" style="border-top: 4px solid var(--ic-teal);">🔋 c. 充電晶片 (Charger IC) 選擇</div>
+                    <div class="pane-col-body">
+                    <div class="card" style="border-left: 3px solid var(--ic-teal);">
+                        <h5>🔋 充電管理晶片 (Charger IC)</h5>
+                        <div class="form-group">
+                            <label>型號選擇:</label>
+                            <select id="chargerIcSelect" class="form-control">
+                                <option value="mp2733" selected>MP2733GQC-C04L [✅ Efficiency Curve 已建立]</option>
+                                <option value="cps5201">CPS5201HRD [✅ Efficiency Curve 已建立]</option>
+                                <option value="ssp707a">SSP707A-V42L [✅ Efficiency Curve 已建立]</option>
+                                <option value="sgm41518">SGM41518YG/TR [✅ Efficiency Curve 已建立]</option>
+                                <option value="bq25180">BQ25180YBGR (規格書無效率曲線圖，待補)</option>
+                                <option value="max17330">MAX17330X22+T (待補 Efficiency Curve)</option>
+                                <option value="fan54063">FAN54063UCX (待補 Efficiency Curve)</option>
+                                <option value="ip5528">IP5528 (待補 Efficiency Curve)</option>
+                                <option value="custom">⚙️ 自訂效率</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>降壓效率 (%):</label>
+                            <input type="text" id="chargerIcEff" class="form-control" value="92.0" disabled>
+                        </div>
+                        <div id="chargerTip" class="ic-tip" style="border-left-color: var(--ic-teal);">✅ MPS MP2733GQC 開關式充電 4.5A，效率最高 92%。</div>
+                        <button type="button" class="btn-calc" style="background:#334155; margin-top:10px; font-size:0.85em;" onclick="openDigitizer('charger')">➕ 新增自訂型號 (上傳Efficiency Curve JPG並數位化)</button>
+                    </div>
+                    </div>
+                </div>
+
+                <!-- d. 線圈 & 隔磁片 Pane -->
+                <div id="pane-coil" class="section-pane">
+                    <div class="pane-col-header" style="border-top: 4px solid var(--eff-orange);">📐 d. 線圈 &amp; 隔磁片尺寸參數 (Coil &amp; Shield)</div>
+                    <div class="pane-col-body">
+                    <div class="card" style="border-left: 3px solid var(--eff-orange);">
+                        <h5>📐 線圈外型幾何 (Coil Geometry)</h5>
+                        <div style="display:flex; gap:4px; margin-bottom:8px;">
+                            <button type="button" class="btn-preset" onclick="loadCoilPreset('sim')">⬭ 橢圓 32×25</button>
+                            <button type="button" class="btn-preset" onclick="loadCoilPreset('rect')">▭ 矩形 20×32</button>
+                            <button type="button" class="btn-preset" onclick="loadCoilPreset('circle')">◯ 圓形 Ø24</button>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group"><label>長 X外 (mm):</label><input type="number" id="coilX" class="form-control" value="32.0" step="0.1"></div>
+                            <div class="form-group"><label>寬 Y外 (mm):</label><input type="number" id="coilY" class="form-control" value="25.0" step="0.1"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>線圈厚度 coilT (mm):</label>
+                            <input type="number" id="coilT" class="form-control" value="0.75" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label>線圈 TYPE <span class="sub-note">— 繞線類型</span>:</label>
+                            <select id="coilType" class="form-control">
+                                <option value="signal copper wire">單股銅線 (Signal Copper Wire)</option>
+                                <option value="dual copper wire" selected>雙線繞 (Dual Copper Wire)</option>
+                                <option value="Multi-strand Litz wire">多股絞線 (Multi-strand Litz Wire)</option>
+                                <option value="Multi copper wire">多股銅線 (Multi Copper Wire)</option>
+                                <option value="self-bonding wire">自黏漆包線 (Self-Bonding Wire)</option>
+                                <option value="custom">⚙️ 其他/客製</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="card" style="border-left: 3px solid #64748b;">
+                        <h5>🛡️ 奈米晶屏蔽層 (NC Shield)</h5>
+                        <div class="form-group">
+                            <label>疊層數 (Layers) <span class="sub-note">— 業界公版參考(Laird/GBS)，含PET+背膠完成品厚度</span>:</label>
+                            <select id="ncTPreset" class="form-control">
+                                <option value="1L">單層 (1L) — 完成品約 0.05mm</option>
+                                <option value="2L">雙層 (2L) — 完成品約 0.08mm</option>
+                                <option value="3L" selected>三層 (3L) — 完成品約 0.10mm ★TWS常見</option>
+                                <option value="5L">五層 (5L) — 完成品約 0.15mm</option>
+                                <option value="custom">⚙️ 自訂厚度</option>
+                            </select>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group"><label>厚度 ncT (mm):</label><input type="number" id="ncT" class="form-control" value="0.10" step="0.01" disabled style="background:#f1f5f9;"></div>
+                            <div class="form-group">
+                                <label>邊緣包覆 (Wrap):</label>
+                                <select id="ncWrap" class="form-control"><option value="no" selected>不包邊</option><option value="yes">包邊 (U型)</option></select>
+                            </div>
+                        </div>
+                        <div class="ic-tip" style="border-left-color: #64748b;">⚠ 公規厚度僅為Laird/GBS等原廠參考值，非您實際奈米晶片供應商的驗證規格，實際BOM建議跟供應商確認含公差的規格表。</div>
+                    </div>
+
+                    <div class="card" style="border-left: 3px solid var(--warning);">
+                        <h5>⚡ 電氣參數 (Ls, Q, k)</h5>
+
+                        <div class="param-group-label">📥 輸入數值</div>
+                        <div class="grid-2">
+                            <div class="form-group"><label>感值 Ls (μH):</label><input type="number" id="rxL" class="form-control" value="14.70" step="0.01"></div>
+                            <div class="form-group"><label>Rx線圈距離 (mm):</label><input type="number" id="rxCoilDist" class="form-control" value="2.0" step="0.05"></div>
+                        </div>
+
+                        <div class="param-group-label">📊 量測數值</div>
+                        <div class="grid-2">
+                            <div class="form-group"><label>DCR基準值 rxR (mΩ):</label><input type="number" id="rxR" class="form-control" value="270" step="1"></div>
+                            <div class="form-group"><label>Q 值 (計算輸出):</label><input type="number" id="qVal" class="form-control" value="30" step="1" disabled style="background:#f1f5f9;"></div>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group"><label>ACR (計算輸出, mΩ):</label><input type="number" id="rxACR" class="form-control" value="320" disabled style="background:#f1f5f9;"></div>
+                            <div class="form-group"><label>k 耦合係數 (手動輸入):</label><input type="number" id="kVal" class="form-control" value="0.68" step="0.01"></div>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+
+                <!-- e. 磁鐵 & 導磁片 Pane -->
+                <div id="pane-magnet" class="section-pane">
+                    <div class="pane-col-header" style="border-top: 4px solid var(--danger);">🧲 e. 磁鐵 &amp; 導磁片配置 (Magnet Array)</div>
+                    <div class="pane-col-body">
+                    <div class="card" style="border-left: 3px solid var(--danger);">
+                        <h5 style="margin:0 0 8px 0;">🧲 磁鐵環配置 (Magnet Array)</h5>
+                        <div id="magSettingsWrapper">
+                            <div class="grid-3">
+                                <div class="form-group"><label>數量:</label><input type="number" id="magCount" class="form-control" value="6" step="2"></div>
+                                <div class="form-group"><label>寬 W (mm):</label><input type="number" id="magW" class="form-control" value="6"></div>
+                                <div class="form-group"><label>厚 T (mm):</label><input type="number" id="magT" class="form-control" value="0.8" step="0.1"></div>
+                            </div>
+                            <div class="grid-2" style="margin-top:4px;">
+                                <div class="form-group">
+                                    <label>表面塗層:</label>
+                                    <select id="magCoating" class="form-control"><option value="0.1" selected>Ni-Cu-Ni</option><option value="0.0">無</option></select>
+                                </div>
+                                <div class="form-group">
+                                    <label>材質等級:</label>
+                                    <select id="magGrade" class="form-control"><option value="1.1" selected>H52</option><option value="1.0">H48</option></select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>導磁片 (SUS430 mm):</label>
+                                <select id="susT" class="form-control">
+                                    <option value="0.08">0.08 mm</option>
+                                    <option value="0.10">0.10 mm</option>
+                                    <option value="0.15">0.15 mm</option>
+                                    <option value="0.20" selected>0.20 mm</option>
+                                    <option value="0.30">0.30 mm</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>磁鐵排列角度: <span id="v_a1">33</span>°</label>
+                                <input type="range" id="a1_slider" min="5" max="80" value="33" style="width:100%;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 磁吸拉力速查表 -->
+                    <div class="card" style="border-left: 3px solid var(--warning);">
+                        <h5>🧲 TWS 磁吸重與抗滑力規範</h5>
+                        <table class="advice-table">
+                            <tr><th>總重</th><th>建議拉力(kgf)</th><th>UX 體驗</th></tr>
+                            <tr><td>&lt;35g</td><td style="color:var(--eff-green); font-weight:bold;">0.15~0.25</td><td>極輕巧盲吸</td></tr>
+                            <tr><td>35~60g</td><td style="color:#2196F3; font-weight:bold;">0.25~0.35</td><td>單手完美取放</td></tr>
+                            <tr><td>60~90g</td><td style="color:var(--warning); font-weight:bold;">0.35~0.50</td><td>穩固不浮盤</td></tr>
+                            <tr><td>90~120g</td><td style="color:var(--danger); font-weight:bold;">0.50~0.65</td><td>強力抗滑</td></tr>
+                        </table>
+                    </div>
+                    </div>
+                </div>
+
+            </div>
+            </div>
+
+        <!-- ─── 欄 3: 展示與結果分頁 ─── -->
+        <div class="display-panel">
+            <div class="display-body">
+                <!-- 分頁 A: 效能計算（結果內容已併入「智慧反推 > 目前診斷」分頁，此處保留空容器維持分頁切換結構） -->
+                <div id="view-calc" class="view-content active">
+                </div>
+
+                <!-- 分頁 B: 空間架構 (含 HUD 即時效能列) -->
+                <div id="view-layout" class="view-content">
+                    <!-- HUD 浮動列：合併奈米晶尺寸與Z軸預估尺寸資訊，取代原本分開上下兩處顯示 -->
+                    <div class="eff-hud-bar">
+                        <div class="eff-hud-item">奈米晶尺寸: <span id="hudNcSize" style="color:#334155; font-weight:800;">-- mm</span></div>
+                        <div class="eff-hud-item">Z 軸預估總高: <span id="hudZSum" style="color:var(--primary); font-weight:800;">-- mm</span></div>
+                        <div class="eff-hud-item">Rx 線圈距離: <span id="hudCoilPos" style="color:var(--warning); font-weight:800;">-- mm</span></div>
+                    </div>
+
+                    <!-- TOP View -->
+                    <div class="layout-subview" style="border-bottom: 2px solid #e2e8f0;">
+                        <div class="view-label">TOP View</div>
+                        <div style="flex-grow: 1; width: 100%; position: relative; overflow:hidden;">
+                            <canvas id="topCanvas_Layout"></canvas>
+                        </div>
+                        <div class="legend-container">
+                            <span style="color:#add8e6;">■ Tx 磁鐵環</span> <span style="color:#cbd5e1;">|</span>
+                            <span style="color:#ff69b4;">■ Tx 線圈</span> <span style="color:#cbd5e1;">|</span>
+                            <span style="color:var(--warning);">■ 線圈</span>
+                            <span id="topMagLegend" style="display:none;">
+                                <span style="color:#cbd5e1;"> | </span><span style="color:var(--danger)">■ N極</span>
+                                <span style="color:#cbd5e1;"> | </span><span style="color:var(--s-pole)">■ S極</span>
+                                <span style="color:#cbd5e1;"> | </span><span style="color:var(--sus-dash);">- - 導磁片</span>
+                            </span>
+                            <span style="color:#cbd5e1;"> | </span><span style="color:#334155;">━ 奈米晶</span>
+                        </div>
+                    </div>
+                    <!-- Z-Stack View -->
+                    <div class="layout-subview">
+                        <div class="view-label">Z-Stack (機構堆疊剖面)</div>
+                        <div style="flex-grow: 1; width: 100%; position: relative; overflow:hidden; background-color: #fafafa;">
+                            <canvas id="zCanvas"></canvas>
+                        </div>
+                        <div class="legend-container">
+                            <span style="color:#94a3b8;">■ 外殼底</span> <span style="color:#cbd5e1;">|</span> 
+                            <span style="color:var(--warning);">■ 線圈</span> <span style="color:#cbd5e1;">|</span> 
+                            <span id="zMagLegend" style="display:none;">
+                                <span style="color:var(--danger)">■ N極</span> <span style="color:#cbd5e1;">|</span> 
+                                <span style="color:var(--s-pole)">■ S極</span> <span style="color:#cbd5e1;">|</span> 
+                                <span style="color:var(--sus-color);">■ 導磁片</span> <span style="color:#cbd5e1;">|</span>
+                            </span>
+                            <span style="color:#1e293b;">■ 奈米晶屏蔽</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 分頁 C: 歷史數據 -->
+                <div id="view-history" class="view-content">
+                    <div class="hist-preview-banner">
+                        📌 <b>資料庫模組目前為前端 UI/UX 預覽</b>，尚未串接後端伺服器。畫面上的「管理者登入」僅示範未來操作流程，資料實際仍儲存於本檔案內建值與您瀏覽器的 localStorage，並非真正的後端資料庫與權限控管。
+                    </div>
+
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <div style="font-weight:700; font-size:0.9em; color:#475569;">📋 機型資料庫歷史規格</div>
+                            <div id="histModeBadge" class="hist-mode-badge guest">👁 訪客模式（僅檢視）</div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            <button type="button" id="histLoginBtn" class="hist-view-btn" onclick="openHistLogin()">🔒 管理者登入</button>
+                            <button type="button" id="histViewTableBtn" class="hist-view-btn active" onclick="switchHistView('table')">📄 表格檢視</button>
+                            <button type="button" id="histViewCardBtn" class="hist-view-btn" onclick="switchHistView('card')">🗂 卡片檢視</button>
+                        </div>
+                    </div>
+
+                    <div class="hist-filter-bar">
+                        <div class="hist-filter-item">
+                            <label>線圈 TYPE</label>
+                            <select id="filterCoilType" onchange="applyHistFilters()"><option value="">全部</option></select>
+                        </div>
+                        <div class="hist-filter-item">
+                            <label>隔磁片材質</label>
+                            <select id="filterShield" onchange="applyHistFilters()"><option value="">全部</option></select>
+                        </div>
+                        <div class="hist-filter-item">
+                            <label>Rx IC 選型</label>
+                            <select id="filterRxIc" onchange="applyHistFilters()"><option value="">全部</option></select>
+                        </div>
+                        <div class="hist-filter-item">
+                            <label>尺寸 / 面積</label>
+                            <select id="filterSize" onchange="applyHistFilters()"><option value="">全部</option></select>
+                        </div>
+                        <button type="button" class="hist-view-btn" onclick="resetHistFilters()" style="align-self:flex-end;">↺ 清除篩選</button>
+                        <div id="histFilterCount" style="align-self:flex-end; font-size:0.78em; color:#64748b; padding-bottom:6px;"></div>
+                    </div>
+
+                    <table id="histTableView" class="sim-table" style="font-size:0.78em;">
+                        <thead>
+                            <tr><th>機型</th><th>Rx IC</th><th>Charger IC</th><th>電池容量</th><th>電壓</th><th>電流(A)</th><th>C-rate</th><th>充電時數</th><th>Type</th><th>隔磁片</th><th>尺寸</th><th>Rx IC效率</th><th>Ls(μH)</th><th>Q值</th><th>DCR(mΩ)</th></tr>
+                        </thead>
+                        <tbody id="histTableBody"></tbody>
+                    </table>
+
+                    <div id="histCardView" style="display:none;"></div>
+                </div>
+
+                <!-- 分頁 D: 智慧反推建議 -->
+                <div id="view-advisor" class="view-content">
+                    <div class="advisor-subtabbar">
+                        <button id="advisorBtn_diag" class="advisor-tabbtn active" onclick="switchAdvisorTab('diag')">🔍 目前診斷</button>
+                        <button id="advisorBtn_eff" class="advisor-tabbtn" onclick="switchAdvisorTab('eff')">🎯 目標效率反推</button>
+                        <button id="advisorBtn_pwr" class="advisor-tabbtn" onclick="switchAdvisorTab('pwr')">⚡ 目標功率反推</button>
+                        <button id="advisorBtn_space" class="advisor-tabbtn" onclick="switchAdvisorTab('space')">📐 空間反推</button>
+                    </div>
+                    <div class="advisor-body-inline">
+
+                        <!-- Tab 1：目前診斷 -->
+                        <div id="advisorPanel_diag" class="advisor-panel active">
+                            <table class="sim-table">
+                                <tr><th>🎯 目標充電功率 (Target Power)</th><td id="resTargetPower">-- W</td></tr>
+                                <tr><th>⚡ 總輸入功率 (Input Power)</th><td id="resInPower">-- W</td></tr>
+                                <tr style="background:#fef3c7;"><th>🔥 總發熱損耗 (Total Thermal Loss) <span style="font-weight:400; font-size:0.85em; color:#92400e;">※電性損耗(W)，非實測溫升(°C)</span></th><td id="resTotalLoss" style="color:#b45309;">-- W</td></tr>
+                                <tr><th>&nbsp;↳ 線圈損耗 (Coil Loss)</th><td id="resCoilLoss">-- W</td></tr>
+                                <tr><th>&nbsp;↳ IC 轉換總損耗 (IC Loss)</th><td id="resICLoss" style="color:var(--ic-purple);">-- W</td></tr>
+                            </table>
+
+                            <div class="advisor-desc" style="margin-top:14px;">依欄2目前所有參數，從效率、損耗、充電條件、線圈耦合、機構空間五個面向自動診斷，找出RD目前設計需要注意的項目，並標示優先處理順序。</div>
+                            <div id="advisorPriorityBox"></div>
+                            <div id="advisorDiagList"></div>
+                        </div>
+
+                        <!-- Tab 2：目標效率反推 -->
+                        <div id="advisorPanel_eff" class="advisor-panel">
+                            <div class="advisor-desc">輸入希望達成的「線圈效率(%)」，反推需要的k耦合係數 / Qrx，供調整線圈距離、DCR或屏蔽設定參考。</div>
+                            <div class="advisor-inputrow">
+                                <label>目標線圈效率(%):</label>
+                                <input type="number" id="advEffTarget" value="85" step="0.5">
+                                <button onclick="solveTargetEff()">反推</button>
+                            </div>
+                            <div id="advEffResult"></div>
+                        </div>
+
+                        <!-- Tab 3：目標功率反推 -->
+                        <div id="advisorPanel_pwr" class="advisor-panel">
+                            <div class="advisor-desc">輸入希望達成的「充電時數(hr)」，依目前電池容量反推所需充電電流/C-rate/瓦特數。</div>
+                            <div class="advisor-inputrow">
+                                <label>目標充電時數(hr):</label>
+                                <input type="number" id="advTimeTarget" value="1.5" step="0.1">
+                                <button onclick="solveTargetPower()">反推</button>
+                            </div>
+                            <div id="advPwrResult"></div>
+                        </div>
+
+                        <!-- Tab 4：空間反推 -->
+                        <div id="advisorPanel_space" class="advisor-panel">
+                            <div class="advisor-desc">輸入「Z軸總高度上限(mm)」，依目前奈米晶厚度/磁鐵堆疊等固定項，反推Rx線圈距離的可行上限。</div>
+                            <div class="advisor-inputrow">
+                                <label>Z總高度上限(mm):</label>
+                                <input type="number" id="advZTarget" value="4.0" step="0.1">
+                                <button onclick="solveTargetSpace()">反推</button>
+                            </div>
+                            <div id="advSpaceResult"></div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- IC效率曲線數位化 Modal -->
+<div id="digModal" class="advisor-modal-overlay">
+  <div class="dig-modal-content">
+    <div class="advisor-header">
+        <div class="advisor-header-title" id="digHeaderTitle">➕ 新增自訂 IC 型號（曲線數位化）</div>
+        <button class="advisor-close-btn" onclick="closeDigitizer()">&times;</button>
+    </div>
+    <div class="dig-body">
+
+        <div class="dig-step">
+            <div class="dig-step-title"><span class="dig-num"></span> 基本資料</div>
+            <div class="dig-inline-row">
+                <label>型號名稱:</label>
+                <input type="text" id="digModelName" placeholder="例如 XC6802-A" style="width:200px;">
+                <label>查表軸向:</label>
+                <select id="digAxisType">
+                    <option value="power">功率 W (X軸為Pout)</option>
+                    <option value="current">電流 A (X軸為Output Current/Load)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="dig-step">
+            <div class="dig-step-title"><span class="dig-num"></span> 上傳Efficiency Curve圖檔 (JPG/PNG)</div>
+            <input type="file" id="digFileInput" accept="image/*">
+            <div class="dig-canvas-wrap" id="digCanvasWrap" style="display:none;">
+                <canvas id="digCanvas"></canvas>
+            </div>
+        </div>
+
+        <div class="dig-step" id="digCalibStep" style="display:none;">
+            <div class="dig-step-title"><span class="dig-num"></span> 座標校正 — 請依提示依序點擊圖上4個已知刻度點</div>
+            <div id="digCalibHint" style="font-size:0.85em; color:#b45309; font-weight:700; margin-bottom:6px;">請點擊X軸上第1個已知刻度點</div>
+            <div class="dig-inline-row" id="digCalibInputRow" style="display:none;">
+                <label>此點的真實數值:</label>
+                <input type="number" id="digCalibValue" step="any" style="width:100px;">
+                <button class="dig-btn" onclick="confirmCalibPoint()">確認</button>
+            </div>
+            <button class="dig-btn secondary" onclick="resetCalibration()">重新校正</button>
+        </div>
+
+        <div class="dig-step" id="digDigitizeStep" style="display:none;">
+            <div class="dig-step-title"><span class="dig-num"></span> 曲線描點 — 依序點擊曲線上的資料點（建議8~12點，涵蓋低/中/高負載區）</div>
+            <table class="dig-pt-table" id="digPtTable">
+                <thead><tr><th>#</th><th id="digColX">X</th><th>效率(%)</th><th></th></tr></thead>
+                <tbody id="digPtTbody"></tbody>
+            </table>
+            <div class="dig-inline-row" style="margin-top:8px;">
+                <button class="dig-btn secondary" onclick="undoLastPoint()">↩ 復原上一點</button>
+                <button class="dig-btn danger-btn" onclick="clearAllPoints()">🗑 清空所有點</button>
+            </div>
+        </div>
+
+        <div class="dig-step">
+            <div class="dig-step-title"><span class="dig-num"></span> 儲存</div>
+            <button class="dig-btn" style="background:var(--eff-green); padding:8px 20px; font-size:0.9em;" onclick="saveDigitizedCurve()">💾 儲存並加入下拉選單</button>
+            <div id="digSaveMsg" style="margin-top:8px; font-size:0.85em;"></div>
+        </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Coil圖面 放大燈箱 -->
+<div id="coilLightboxOverlay" class="coil-lightbox-overlay" onclick="if(event.target===this) closeCoilLightbox()">
+    <div class="coil-lightbox-box">
+        <div class="coil-lightbox-head">
+            <span id="coilLightboxTitle">Coil圖面</span>
+            <button onclick="closeCoilLightbox()">&times;</button>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+            <button class="dig-btn secondary" onclick="navCoilLightbox(-1)" style="padding:6px 10px;">◀</button>
+            <img id="coilLightboxImg" src="" alt="Coil圖面放大檢視">
+            <button class="dig-btn secondary" onclick="navCoilLightbox(1)" style="padding:6px 10px;">▶</button>
+        </div>
+        <div id="coilLightboxCounter" style="text-align:center; font-size:0.8em; color:#64748b; margin-top:6px;"></div>
+    </div>
+</div>
+
+<!-- 管理者登入 Modal (UI/UX 預覽用，尚未串接後端) -->
+<div id="histLoginOverlay" class="coil-lightbox-overlay">
+    <div class="coil-lightbox-box" style="width:360px; max-width:90vw;">
+        <div class="coil-lightbox-head">
+            <span>🔒 管理者登入</span>
+            <button onclick="closeHistLogin()">&times;</button>
+        </div>
+        <div class="hist-login-note">⚠ UI/UX 預覽版：目前尚未串接後端伺服器，此登入僅示範未來操作流程，不具備真實身分驗證與權限控管。</div>
+        <div class="dig-inline-row" style="flex-direction:column; align-items:stretch; gap:8px; margin-top:10px;">
+            <input type="text" id="histLoginUser" placeholder="帳號（示範用，任意輸入即可）" style="width:100%;">
+            <input type="password" id="histLoginPass" placeholder="密碼（示範用，任意輸入即可）" style="width:100%;">
+            <button class="dig-btn" style="width:100%; padding:8px;" onclick="submitHistLogin()">登入（示範）</button>
+        </div>
+        <div id="histLoginMsg" style="font-size:0.78em; color:var(--danger); margin-top:6px;"></div>
+    </div>
+</div>
+
+<script src="{% static 'calculator/qi-tool.js' %}?v={{ script_version }}"></script>
+
+</body>
+</html>

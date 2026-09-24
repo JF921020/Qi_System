@@ -4,11 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <title>Qi無線充電預測工具_TWS (相容定位功能)</title>
-    <link rel="stylesheet" href="{% static 'calculator/qi-tool.css' %}">
+    <link rel="stylesheet" href="{% static 'main/qi-tool.css' %}">
 </head>
-<body data-calculate-url="{% url 'calculator:calculate' %}">
+<body data-calculate-url="{% url 'main:main' %}">
 {% csrf_token %}
-{{ curves|json_script:"qi-curves" }}
+{{ curves|json_script:"qi-curves"}}
 
 <!-- ─── 欄 1: 側邊導航 ─── -->
 <div class="nav-sidebar">
@@ -19,10 +19,12 @@
         <li id="tab-qi2" class="nav-item tab-btn" onclick="switchDisplayTab('qi2')">🧲 相容Qi 2定位</li>
         <li id="tab-history" class="nav-item tab-btn" onclick="switchDisplayTab('history')">💾 歷史數據</li>
         <li id="tab-advisor" class="nav-item tab-btn" onclick="switchDisplayTab('advisor')">🧠 智慧反推</li>
+        <li class="nav-item"><a href="{% url 'main:ic-list' 'rx' %}" style="color:inherit;text-decoration:none;">🔌 Rx IC 管理</a></li>
+        <li class="nav-item"><a href="{% url 'main:ic-list' 'charger' %}" style="color:inherit;text-decoration:none;">🔋 Charger IC 管理</a></li>
     </ul>
     <div class="nav-footer">
         <button type="button" class="btn-calc" onclick="triggerCalc()">▶ 立即計算</button>
-        <p id="calcStatus" role="status" aria-live="polite" style="padding:0 12px;color:#cbd5e1;font-size:12px;">等待計算</p>
+        <p id="calcStatus" role="status" aria-live="polite" style="padding:0 12px;color:#cbd5e1;font-size:12px;"></p>
     </div>
     <div class="nav-spacer"></div>
 </div>
@@ -43,7 +45,7 @@
             <span class="eff-banner-hint">點擊展開各階效率明細</span>
         </div>
         <div id="effBannerExpanded" class="eff-top-banner" onclick="toggleEffBanner()">
-            <div class="eff-grid-cell"><div id="sysBadgeLarge" class="eff-box eff-box-clickable" title="點擊查看效能損耗明細" onclick="switchDisplayTab('advisor'); switchAdvisorTab('diag'); event.stopPropagation();" style="background:#1e293b;">--%</div><div class="eff-label">系統總效率</div></div>
+            <div class="eff-grid-cell"><div id="sysBadgeLarge" class="eff-box eff-box-clickable" title="點擊查看效能損耗明細" style="background:#1e293b;">--%</div><div class="eff-label">系統總效率</div></div>
             <div class="eff-op" style="left:306px;">🟰</div>
             <div class="eff-grid-cell"><div id="rxIcBadgeLarge" class="eff-box" style="background:var(--ic-purple);">85%</div><div class="eff-label">Rx IC 效率</div></div>
             <div class="eff-op" style="left:618px;">✖</div>
@@ -69,51 +71,51 @@
 
                         <!-- 1. 電池額定容量 (Capacity, mAh) -->
                         <div class="form-group">
-                            <label>1. 電池額定容量 <span class="sub-note">(Capacity, mAh)</span>:</label>
-                            <input type="number" id="batCapacity" class="form-control" value="400">
+                            <label for="batCapacity">1. 電池額定容量 <span class="sub-note">(Capacity, mAh)</span>:</label>
+                            <input type="number" min="0" id="batCapacity" class="form-control" value="400">
                         </div>
 
                         <!-- 2. 充電瓦特數 (Power, W) -->
                         <div class="form-group">
-                            <label>2. 充電瓦特數 <span class="sub-note">(Power, W)</span>:</label>
-                            <input type="number" id="sysPower" class="form-control" value="2.5" step="0.1">
+                            <label for="sysPower">2. 充電瓦特數 <span class="sub-note">(Power, W)</span>:</label>
+                            <input type="number" min="0" id="sysPower" class="form-control" value="2.5" step="0.1">
                         </div>
 
                         <!-- 3. 充電電壓 (Voltage, V) -->
                         <div class="form-group">
-                            <label>3. 充電電壓 <span class="sub-note">(Voltage, V)</span>:</label>
-                            <input type="number" id="batVoltage" class="form-control" value="3.70" step="0.05">
+                            <label for="batVoltage">3. 充電電壓 <span class="sub-note">(Voltage, V)</span>:</label>
+                            <input type="number" min="0" id="batVoltage" class="form-control" value="3.70" step="0.05">
                         </div>
 
                         <!-- 4. 充電電流 (Current, A / mA) -->
                         <div class="grid-2">
                             <div class="form-group">
-                                <label>4. 充電電流 <span class="sub-note">(A)</span>:</label>
-                                <input type="number" id="chargeCurrentA" class="form-control" value="0.40" step="0.01">
+                                <label for="chargeCurrentA">4. 充電電流 <span class="sub-note">(A)</span>:</label>
+                                <input type="number" min="0" id="chargeCurrentA" class="form-control" value="0.40" step="0.01">
                             </div>
                             <div class="form-group">
-                                <label>充電電流 <span class="sub-note">(mA)</span>:</label>
-                                <input type="number" id="chargeCurrentmA" class="form-control" value="400" step="10">
+                                <label for="chargeCurrentmA">充電電流 <span class="sub-note">(mA)</span>:</label>
+                                <input type="number" min="0" id="chargeCurrentmA" class="form-control" value="400" step="10">
                             </div>
                         </div>
 
                         <!-- 5. 充電倍率 (C-rate) -->
                         <div class="form-group">
-                            <label>5. 充電倍率 <span class="sub-note">(C-rate)</span>:</label>
-                            <input type="number" id="batMaxC" class="form-control" value="1.0" step="0.1">
+                            <label for="batMaxC">5. 充電倍率 <span class="sub-note">(C-rate)</span>:</label>
+                            <input type="number" min="0" id="batMaxC" class="form-control" value="1.0" step="0.1">
                         </div>
 
                         <!-- 6. 充電時數要求 -->
                         <div class="form-group">
-                            <label>6. 充電時數要求 <span class="sub-note">(Charging Time, CC-CV hr)</span>:</label>
-                            <input type="number" id="targetChargeTimeHr" class="form-control" value="1.5" step="0.1">
+                            <label for="targetChargeTimeHr">6. 充電時數要求 <span class="sub-note">(Charging Time, CC-CV hr)</span>:</label>
+                            <input type="number" min="0" id="targetChargeTimeHr" class="form-control" value="1.5" step="0.1">
                         </div>
                     </div>
 
                     <div class="card" style="border-left: 3px solid var(--warning);">
                         <h5>🛡️ 機構環境 & 輔助參數</h5>
                         <div class="form-group">
-                            <label>外殼材質 (Case Material):</label>
+                            <label for="caseMaterial">外殼材質 (Case Material):</label>
                             <select id="caseMaterial" class="form-control">
                                 <option value="pc_abs" selected>PC+ABS 塑料外殼</option>
                                 <option value="aluminum">鋁合金金屬外殼 (強制包邊)</option>
@@ -121,11 +123,11 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>電池儲能 <span class="sub-note">(Energy, Wh)</span>:</label>
+                            <label for="batEnergyWh">電池儲能 <span class="sub-note">(Energy, Wh)</span>:</label>
                             <input type="text" id="batEnergyWh" class="form-control" value="1.480 Wh" disabled style="background:#f8fafc;">
                         </div>
                         <div class="form-group" style="border-top: 1px dashed #e2e8f0; padding-top: 6px; margin-top: 4px;">
-                            <label>應用場景公版速選 <span class="sub-note">(選填快速套用，不影響查表所需6項)</span>:</label>
+                            <label for="batScenarioSelect">應用場景公版速選 <span class="sub-note">(選填快速套用，不影響查表所需6項)</span>:</label>
                             <select id="batScenarioSelect" class="form-control">
                                 <option value="ultraslim">🔋 [超輕薄入門] 250mAh / 3.70V / 0.5C (0.925Wh)</option>
                                 <option value="standard" selected>🔋 [標準入門] 400mAh / 3.70V / 1C (1.48Wh)</option>
@@ -145,17 +147,16 @@
                     <div class="card" style="border-left: 3px solid var(--ic-purple);">
                         <h5>🔌 接收端晶片 (Rx IC)</h5>
                         <div class="form-group">
-                            <label>型號選擇:</label>
-                            <select id="rxIcSelect" class="form-control">
-                                <option value="cps4019" selected>易沖 CPS4019 (-T00C/-0W0M) [✅ Efficiency Curve 已建立]</option>
-                                <option value="p9225">Renesas P9225-RAHGI8 [✅ Efficiency Curve 已建立]</option>
-                                <option value="cv8045d">ST CV8045D-05DB (待補 Efficiency Curve)</option>
-                                <option value="ip6831">英集芯 IP6831 (待補 Efficiency Curve)</option>
-                                <option value="custom">⚙️ 自訂效率</option>
+                            <label for="rxIcSelect">型號選擇:</label>
+<select id="rxIcSelect" class="form-control">
+                                {% for ic in ic_settings %}{% if ic.kind == 'rx' %}
+                                <option value="{{ ic.code }}" {% if ic.code == 'cps4019' %}selected{% endif %}>{{ ic.name }} — {{ ic.get_mode_display }}{% if ic.provisional %}（暫定）{% endif %}</option>
+                                {% endif %}{% endfor %}
+                                <option value="custom">⚙️ 自訂效率（本次計算）</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>轉換效率 (%):</label>
+                            <label for="rxIcEff">轉換效率 (%):</label>
                             <input type="text" id="rxIcEff" class="form-control" value="85.0" disabled>
                         </div>
                         <div id="rxTip" class="ic-tip">💡 建議：[主流 Rx IC] 易沖 CPS4019 負責線圈能量接收。</div>
@@ -171,21 +172,16 @@
                     <div class="card" style="border-left: 3px solid var(--ic-teal);">
                         <h5>🔋 充電管理晶片 (Charger IC)</h5>
                         <div class="form-group">
-                            <label>型號選擇:</label>
-                            <select id="chargerIcSelect" class="form-control">
-                                <option value="mp2733" selected>MP2733GQC-C04L [✅ Efficiency Curve 已建立]</option>
-                                <option value="cps5201">CPS5201HRD [✅ Efficiency Curve 已建立]</option>
-                                <option value="ssp707a">SSP707A-V42L [✅ Efficiency Curve 已建立]</option>
-                                <option value="sgm41518">SGM41518YG/TR [✅ Efficiency Curve 已建立]</option>
-                                <option value="bq25180">BQ25180YBGR (規格書無效率曲線圖，待補)</option>
-                                <option value="max17330">MAX17330X22+T (待補 Efficiency Curve)</option>
-                                <option value="fan54063">FAN54063UCX (待補 Efficiency Curve)</option>
-                                <option value="ip5528">IP5528 (待補 Efficiency Curve)</option>
-                                <option value="custom">⚙️ 自訂效率</option>
+                            <label for="chargerIcSelect">型號選擇:</label>
+<select id="chargerIcSelect" class="form-control">
+                                {% for ic in ic_settings %}{% if ic.kind == 'charger' %}
+                                <option value="{{ ic.code }}" {% if ic.code == 'mp2733' %}selected{% endif %}>{{ ic.name }} — {{ ic.get_mode_display }}{% if ic.provisional %}（暫定）{% endif %}</option>
+                                {% endif %}{% endfor %}
+                                <option value="custom">⚙️ 自訂效率（本次計算）</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>降壓效率 (%):</label>
+                            <label for="chargerIcEff">降壓效率 (%):</label>
                             <input type="text" id="chargerIcEff" class="form-control" value="92.0" disabled>
                         </div>
                         <div id="chargerTip" class="ic-tip" style="border-left-color: var(--ic-teal);">✅ MPS MP2733GQC 開關式充電 4.5A，效率最高 92%。</div>
@@ -206,15 +202,15 @@
                             <button type="button" class="btn-preset" onclick="loadCoilPreset('circle')">◯ 圓形 Ø24</button>
                         </div>
                         <div class="grid-2">
-                            <div class="form-group"><label>長 X外 (mm):</label><input type="number" id="coilX" class="form-control" value="32.0" step="0.1"></div>
-                            <div class="form-group"><label>寬 Y外 (mm):</label><input type="number" id="coilY" class="form-control" value="25.0" step="0.1"></div>
+                            <div class="form-group"><label for="coilX">長 X外 (mm):</label><input type="number" min="0" id="coilX" class="form-control" value="32.0" step="0.1"></div>
+                            <div class="form-group"><label for="coilY">寬 Y外 (mm):</label><input type="number" min="0" id="coilY" class="form-control" value="25.0" step="0.1"></div>
                         </div>
                         <div class="form-group">
-                            <label>線圈厚度 coilT (mm):</label>
-                            <input type="number" id="coilT" class="form-control" value="0.75" step="0.01">
+                            <label for="coilT">線圈厚度 coilT (mm):</label>
+                            <input type="number" min="0" id="coilT" class="form-control" value="0.75" step="0.01">
                         </div>
                         <div class="form-group">
-                            <label>線圈 TYPE <span class="sub-note">— 繞線類型</span>:</label>
+                            <label for="coilType">線圈 TYPE <span class="sub-note">— 繞線類型</span>:</label>
                             <select id="coilType" class="form-control">
                                 <option value="signal copper wire">單股銅線 (Signal Copper Wire)</option>
                                 <option value="dual copper wire" selected>雙線繞 (Dual Copper Wire)</option>
@@ -229,7 +225,7 @@
                     <div class="card" style="border-left: 3px solid #64748b;">
                         <h5>🛡️ 奈米晶屏蔽層 (NC Shield)</h5>
                         <div class="form-group">
-                            <label>疊層數 (Layers) <span class="sub-note">— 業界公版參考(Laird/GBS)，含PET+背膠完成品厚度</span>:</label>
+                            <label for="ncTPreset">疊層數 (Layers) <span class="sub-note">— 業界公版參考(Laird/GBS)，含PET+背膠完成品厚度</span>:</label>
                             <select id="ncTPreset" class="form-control">
                                 <option value="1L">單層 (1L) — 完成品約 0.05mm</option>
                                 <option value="2L">雙層 (2L) — 完成品約 0.08mm</option>
@@ -239,9 +235,9 @@
                             </select>
                         </div>
                         <div class="grid-2">
-                            <div class="form-group"><label>厚度 ncT (mm):</label><input type="number" id="ncT" class="form-control" value="0.10" step="0.01" disabled style="background:#f1f5f9;"></div>
+                            <div class="form-group"><label for="ncT">厚度 ncT (mm):</label><input type="number" min="0" id="ncT" class="form-control" value="0.10" step="0.01" disabled style="background:#f1f5f9;"></div>
                             <div class="form-group">
-                                <label>邊緣包覆 (Wrap):</label>
+                                <label for="ncWrap">邊緣包覆 (Wrap):</label>
                                 <select id="ncWrap" class="form-control"><option value="no" selected>不包邊</option><option value="yes">包邊 (U型)</option></select>
                             </div>
                         </div>
@@ -253,18 +249,18 @@
 
                         <div class="param-group-label">📥 輸入數值</div>
                         <div class="grid-2">
-                            <div class="form-group"><label>感值 Ls (μH):</label><input type="number" id="rxL" class="form-control" value="14.70" step="0.01"></div>
-                            <div class="form-group"><label>Rx線圈距離 (mm):</label><input type="number" id="rxCoilDist" class="form-control" value="2.0" step="0.05"></div>
+                            <div class="form-group"><label for="rxL">感值 Ls (μH):</label><input type="number" min="0" id="rxL" class="form-control" value="14.70" step="0.01"></div>
+                            <div class="form-group"><label for="rxCoilDist">Rx線圈距離 (mm):</label><input type="number" min="0" id="rxCoilDist" class="form-control" value="2.0" step="0.05"></div>
                         </div>
 
                         <div class="param-group-label">📊 量測數值</div>
                         <div class="grid-2">
-                            <div class="form-group"><label>DCR基準值 rxR (mΩ):</label><input type="number" id="rxR" class="form-control" value="270" step="1"></div>
-                            <div class="form-group"><label>Q 值 (計算輸出):</label><input type="number" id="qVal" class="form-control" value="30" step="1" disabled style="background:#f1f5f9;"></div>
+                            <div class="form-group"><label for="rxR">DCR基準值 rxR (mΩ):</label><input type="number" min="0" id="rxR" class="form-control" value="270" step="1"></div>
+                            <div class="form-group"><label for="qVal">Q 值 (計算輸出):</label><input type="number" min="0" id="qVal" class="form-control" value="30" step="1" disabled style="background:#f1f5f9;"></div>
                         </div>
                         <div class="grid-2">
-                            <div class="form-group"><label>ACR (計算輸出, mΩ):</label><input type="number" id="rxACR" class="form-control" value="320" disabled style="background:#f1f5f9;"></div>
-                            <div class="form-group"><label>k 耦合係數 (手動輸入):</label><input type="number" id="kVal" class="form-control" value="0.68" step="0.01"></div>
+                            <div class="form-group"><label for="rxACR">ACR (計算輸出, mΩ):</label><input type="number" min="0" id="rxACR" class="form-control" value="320" disabled style="background:#f1f5f9;"></div>
+                            <div class="form-group"><label for="kVal">k 耦合係數 (手動輸入):</label><input type="number" min="0" id="kVal" class="form-control" value="0.68" step="0.01"></div>
                         </div>
                     </div>
                     </div>
@@ -278,22 +274,22 @@
                         <h5 style="margin:0 0 8px 0;">🧲 磁鐵環配置 (Magnet Array)</h5>
                         <div id="magSettingsWrapper">
                             <div class="grid-3">
-                                <div class="form-group"><label>數量:</label><input type="number" id="magCount" class="form-control" value="6" step="2"></div>
-                                <div class="form-group"><label>寬 W (mm):</label><input type="number" id="magW" class="form-control" value="6"></div>
-                                <div class="form-group"><label>厚 T (mm):</label><input type="number" id="magT" class="form-control" value="0.8" step="0.1"></div>
+                                <div class="form-group"><label for="magCount">數量:</label><input type="number" min="0" id="magCount" class="form-control" value="6" step="2"></div>
+                                <div class="form-group"><label for="magW">寬 W (mm):</label><input type="number" min="0" id="magW" class="form-control" value="6"></div>
+                                <div class="form-group"><label for="magT">厚 T (mm):</label><input type="number" min="0" id="magT" class="form-control" value="0.8" step="0.1"></div>
                             </div>
                             <div class="grid-2" style="margin-top:4px;">
                                 <div class="form-group">
-                                    <label>表面塗層:</label>
+                                    <label for="magCoating">表面塗層:</label>
                                     <select id="magCoating" class="form-control"><option value="0.1" selected>Ni-Cu-Ni</option><option value="0.0">無</option></select>
                                 </div>
                                 <div class="form-group">
-                                    <label>材質等級:</label>
+                                    <label for="magGrade">材質等級:</label>
                                     <select id="magGrade" class="form-control"><option value="1.1" selected>H52</option><option value="1.0">H48</option></select>
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label>導磁片 (SUS430 mm):</label>
+                                <label for="susT">導磁片 (SUS430 mm):</label>
                                 <select id="susT" class="form-control">
                                     <option value="0.08">0.08 mm</option>
                                     <option value="0.10">0.10 mm</option>
@@ -303,7 +299,7 @@
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label>磁鐵排列角度: <span id="v_a1">33</span>°</label>
+                                <label for="a1_slider">磁鐵排列角度: <span id="v_a1">33</span>°</label>
                                 <input type="range" id="a1_slider" min="5" max="80" value="33" style="width:100%;">
                             </div>
                         </div>
@@ -399,19 +395,19 @@
 
                     <div class="hist-filter-bar">
                         <div class="hist-filter-item">
-                            <label>線圈 TYPE</label>
+                            <label for="filterCoilType">線圈 TYPE</label>
                             <select id="filterCoilType" onchange="applyHistFilters()"><option value="">全部</option></select>
                         </div>
                         <div class="hist-filter-item">
-                            <label>隔磁片材質</label>
+                            <label for="filterShield">隔磁片材質</label>
                             <select id="filterShield" onchange="applyHistFilters()"><option value="">全部</option></select>
                         </div>
                         <div class="hist-filter-item">
-                            <label>Rx IC 選型</label>
+                            <label for="filterRxIc">Rx IC 選型</label>
                             <select id="filterRxIc" onchange="applyHistFilters()"><option value="">全部</option></select>
                         </div>
                         <div class="hist-filter-item">
-                            <label>尺寸 / 面積</label>
+                            <label for="filterSize">尺寸 / 面積</label>
                             <select id="filterSize" onchange="applyHistFilters()"><option value="">全部</option></select>
                         </div>
                         <button type="button" class="hist-view-btn" onclick="resetHistFilters()" style="align-self:flex-end;">↺ 清除篩選</button>
@@ -457,8 +453,8 @@
                         <div id="advisorPanel_eff" class="advisor-panel">
                             <div class="advisor-desc">輸入希望達成的「線圈效率(%)」，反推需要的k耦合係數 / Qrx，供調整線圈距離、DCR或屏蔽設定參考。</div>
                             <div class="advisor-inputrow">
-                                <label>目標線圈效率(%):</label>
-                                <input type="number" id="advEffTarget" value="85" step="0.5">
+                                <label for="advEffTarget">目標線圈效率(%):</label>
+                                <input type="number" min="0" id="advEffTarget" value="85" step="0.5">
                                 <button onclick="solveTargetEff()">反推</button>
                             </div>
                             <div id="advEffResult"></div>
@@ -468,8 +464,8 @@
                         <div id="advisorPanel_pwr" class="advisor-panel">
                             <div class="advisor-desc">輸入希望達成的「充電時數(hr)」，依目前電池容量反推所需充電電流/C-rate/瓦特數。</div>
                             <div class="advisor-inputrow">
-                                <label>目標充電時數(hr):</label>
-                                <input type="number" id="advTimeTarget" value="1.5" step="0.1">
+                                <label for="advTimeTarget">目標充電時數(hr):</label>
+                                <input type="number" min="0" id="advTimeTarget" value="1.5" step="0.1">
                                 <button onclick="solveTargetPower()">反推</button>
                             </div>
                             <div id="advPwrResult"></div>
@@ -479,8 +475,8 @@
                         <div id="advisorPanel_space" class="advisor-panel">
                             <div class="advisor-desc">輸入「Z軸總高度上限(mm)」，依目前奈米晶厚度/磁鐵堆疊等固定項，反推Rx線圈距離的可行上限。</div>
                             <div class="advisor-inputrow">
-                                <label>Z總高度上限(mm):</label>
-                                <input type="number" id="advZTarget" value="4.0" step="0.1">
+                                <label for="advZTarget">Z總高度上限(mm):</label>
+                                <input type="number" min="0" id="advZTarget" value="4.0" step="0.1">
                                 <button onclick="solveTargetSpace()">反推</button>
                             </div>
                             <div id="advSpaceResult"></div>
@@ -506,9 +502,9 @@
         <div class="dig-step">
             <div class="dig-step-title"><span class="dig-num"></span> 基本資料</div>
             <div class="dig-inline-row">
-                <label>型號名稱:</label>
+                <label for="digModelName">型號名稱:</label>
                 <input type="text" id="digModelName" placeholder="例如 XC6802-A" style="width:200px;">
-                <label>查表軸向:</label>
+                <label for="digAxisType">查表軸向:</label>
                 <select id="digAxisType">
                     <option value="power">功率 W (X軸為Pout)</option>
                     <option value="current">電流 A (X軸為Output Current/Load)</option>
@@ -518,7 +514,7 @@
 
         <div class="dig-step">
             <div class="dig-step-title"><span class="dig-num"></span> 上傳Efficiency Curve圖檔 (JPG/PNG)</div>
-            <input type="file" id="digFileInput" accept="image/*">
+            <input type="file" id="digFileInput" accept="image/*" aria-label="上傳 Efficiency Curve 圖檔">
             <div class="dig-canvas-wrap" id="digCanvasWrap" style="display:none;">
                 <canvas id="digCanvas"></canvas>
             </div>
@@ -528,8 +524,8 @@
             <div class="dig-step-title"><span class="dig-num"></span> 座標校正 — 請依提示依序點擊圖上4個已知刻度點</div>
             <div id="digCalibHint" style="font-size:0.85em; color:#b45309; font-weight:700; margin-bottom:6px;">請點擊X軸上第1個已知刻度點</div>
             <div class="dig-inline-row" id="digCalibInputRow" style="display:none;">
-                <label>此點的真實數值:</label>
-                <input type="number" id="digCalibValue" step="any" style="width:100px;">
+                <label for="digCalibValue">此點的真實數值:</label>
+                <input type="number" min="0" id="digCalibValue" step="any" style="width:100px;">
                 <button class="dig-btn" onclick="confirmCalibPoint()">確認</button>
             </div>
             <button class="dig-btn secondary" onclick="resetCalibration()">重新校正</button>
@@ -549,7 +545,10 @@
 
         <div class="dig-step">
             <div class="dig-step-title"><span class="dig-num"></span> 儲存</div>
-            <button class="dig-btn" style="background:var(--eff-green); padding:8px 20px; font-size:0.9em;" onclick="saveDigitizedCurve()">💾 儲存並加入下拉選單</button>
+            <button class="dig-btn" style="background:var(--eff-green); padding:8px 20px; font-size:0.9em;" onclick="saveDigitizedCurve()">套用本次計算</button>
+            {% if request.user.is_staff %}
+            <button id="digDatabaseSave" class="dig-btn" data-rx-url="{% url 'main:ic-new' 'rx' %}" data-charger-url="{% url 'main:ic-new' 'charger' %}" onclick="saveDigitizedToDatabase()">命名並儲存到資料庫</button>
+            {% else %}<p>本次套用不會永久保存；如需儲存曲線，請先至 IC 管理頁登入管理者。</p>{% endif %}
             <div id="digSaveMsg" style="margin-top:8px; font-size:0.85em;"></div>
         </div>
 
@@ -558,7 +557,7 @@
 </div>
 
 <!-- Coil圖面 放大燈箱 -->
-<div id="coilLightboxOverlay" class="coil-lightbox-overlay" onclick="if(event.target===this) closeCoilLightbox()">
+<div id="coilLightboxOverlay" class="coil-lightbox-overlay">
     <div class="coil-lightbox-box">
         <div class="coil-lightbox-head">
             <span id="coilLightboxTitle">Coil圖面</span>
@@ -582,15 +581,23 @@
         </div>
         <div class="hist-login-note">⚠ UI/UX 預覽版：目前尚未串接後端伺服器，此登入僅示範未來操作流程，不具備真實身分驗證與權限控管。</div>
         <div class="dig-inline-row" style="flex-direction:column; align-items:stretch; gap:8px; margin-top:10px;">
-            <input type="text" id="histLoginUser" placeholder="帳號（示範用，任意輸入即可）" style="width:100%;">
-            <input type="password" id="histLoginPass" placeholder="密碼（示範用，任意輸入即可）" style="width:100%;">
+            <input type="text" id="histLoginUser" aria-label="管理者帳號" placeholder="帳號（示範用，任意輸入即可）" style="width:100%;">
+            <input type="password" id="histLoginPass" aria-label="管理者密碼" placeholder="密碼（示範用，任意輸入即可）" style="width:100%;">
             <button class="dig-btn" style="width:100%; padding:8px;" onclick="submitHistLogin()">登入（示範）</button>
         </div>
         <div id="histLoginMsg" style="font-size:0.78em; color:var(--danger); margin-top:6px;"></div>
     </div>
 </div>
 
-<script src="{% static 'calculator/qi-tool.js' %}?v={{ script_version }}"></script>
+<script src="{% static 'main/qi-tool-core.js' %}?v={{ script_version }}"></script>
+<script src="{% static 'main/qi-tool-layout.js' %}?v={{ script_version }}"></script>
+<script src="{% static 'main/qi-tool-calculation.js' %}?v={{ script_version }}"></script>
+<script src="{% static 'main/qi-tool-events.js' %}?v={{ script_version }}"></script>
+<script src="{% static 'main/qi-tool-history-data.js' %}?v={{ script_version }}"></script>
+<script src="{% static 'main/qi-tool-history.js' %}?v={{ script_version }}"></script>
+<script src="{% static 'main/qi-tool-advisor.js' %}?v={{ script_version }}"></script>
+<script src="{% static 'main/qi-tool-digitizer.js' %}?v={{ script_version }}"></script>
+<script src="{% static 'main/qi-tool-app.js' %}?v={{ script_version }}"></script>
 
 </body>
 </html>

@@ -89,6 +89,7 @@
             padding: 12px;
             border-top: 1px solid #1e293b;
         }
+        #calcStatus:empty { display: none; }
         .nav-spacer { flex-grow: 1; }
 
         /* ─── 主工作區 ─── */
@@ -468,4 +469,3 @@
         .hist-data-tag.local { background: #fef3c7; color: #b45309; }
         .hcoil-addbtn.disabled-guest { border-style: solid; border-color: #e2e8f0; color: #cbd5e1; cursor: not-allowed; }
         .hcoil-thumb-del.hidden-guest { display: none; }
-    

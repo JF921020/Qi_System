@@ -28,16 +28,20 @@ def interpolate(points, x):
     return points[-1][1]
 
 
-def efficiency(s, kind, current, custom_curves):
+def efficiency(s, kind, current, custom_curves, catalog=None):
+    managed = catalog is not None
+    catalog = CURVES if catalog is None else catalog
     field = "rxIc" if kind == "rx" else "chargerIc"
     selected = s.get(field + "Select")
     if not isinstance(selected, str):
         raise ValueError(f"{field}Select 必須指定型號")
     if selected == "custom":
         return number(s.get(field + "Eff"), field + "Eff", 0, 100), "自訂效率"
-    if selected in CURVES[kind + "Fixed"]:
-        return CURVES[kind + "Fixed"][selected], "暫定效率，僅供佈局預估，不可作驗收依據。"
-    curve = CURVES[kind].get(selected)
+    provisional = selected in catalog.get(kind + "Pending", catalog[kind + "Fixed"])
+    if selected in catalog[kind + "Fixed"]:
+        tip = "暫定效率，僅供佈局預估，不可作驗收依據。" if provisional else "資料庫自訂固定效率"
+        return catalog[kind + "Fixed"][selected], tip
+    curve = catalog[kind].get(selected)
     if curve is None and selected.startswith("custom_"):
         curve = custom_curves.get(kind)
         if not isinstance(curve, dict) or curve.get("axis") not in ("power", "current"):
@@ -57,14 +61,17 @@ def efficiency(s, kind, current, custom_curves):
     if curve is None:
         raise ValueError(f"未知的 {kind} 型號")
     # Preserve the original charger current lookup, regardless of digitizer axis.
-    x = s["sysPower"] if kind == "rx" and curve["axis"] == "power" else current
-    tip = f"依 {x:.2f}{'W' if kind == 'rx' and curve['axis'] == 'power' else 'A'} 查表"
+    power_axis = curve["axis"] == "power" and (managed or kind == "rx")
+    x = s["sysPower"] if power_axis else current
+    tip = f"依 {x:.2f}{'W' if power_axis else 'A'} 查表"
+    if provisional:
+        tip += "（暫定數據，尚未驗證）"
     if x < curve["data"][0][0] or x > curve["data"][-1][0]:
         tip += "（超出取樣範圍，使用端點效率）"
     return interpolate(curve["data"], x), tip
 
 
-def calculate(payload):
+def calculate(payload, catalog=None):
     if not isinstance(payload, dict) or not isinstance(payload.get("state"), dict):
         raise ValueError("請提供 state 參數物件")
     s = payload["state"].copy()
@@ -79,8 +86,8 @@ def calculate(payload):
     if not isinstance(custom_curves, dict):
         raise ValueError("customCurves 必須是物件")
     current = s["batCapacity"] / 1000 * s["batMaxC"]
-    rx, rx_tip = efficiency(s, "rx", current, custom_curves)
-    charger, charger_tip = efficiency(s, "charger", current, custom_curves)
+    rx, rx_tip = efficiency(s, "rx", current, custom_curves, catalog)
+    charger, charger_tip = efficiency(s, "charger", current, custom_curves, catalog)
     metal = s["caseMaterial"] in ("aluminum", "zinc")
     acr = s["rxR"] * (4.8 if metal else 1.8 if s["ncWrap"] == "yes" else 2.22)
     q_rx = 2 * math.pi * s["freq"] * 1000 * s["rxL"] * 1e-6 / (acr * 1e-3)

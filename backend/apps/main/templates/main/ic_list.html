@@ -2,8 +2,7 @@
 {% block content %}
 <div class="heading"><div><p class="eyebrow">COMPONENT LIBRARY</p><h1>{{ title }} 管理</h1>
 <p>保存不同型號與量測條件，供效能計算直接查表。</p></div>
-{% if request.user.is_staff %}<a class="button" href="{% url 'main:ic-new' kind %}">＋ 新增命名設定</a>
-{% else %}<a class="button" href="{% url 'admin:login' %}?next={{ request.path|urlencode }}">管理者登入</a>{% endif %}</div>
+<a class="button" href="{% url 'main:ic-new' kind %}">＋ 新增命名設定</a></div>
 <form class="search" method="get"><label for="ic-query">搜尋設定名稱或型號</label><input id="ic-query" name="q" value="{{ query }}" maxlength="120"><button type="submit">搜尋</button><a href="{% url 'main:ic-list' kind %}">清除</a></form>
 <div class="table-wrap"><table>
 <thead><tr><th>設定名稱 / 型號</th><th>效率來源</th><th>狀態</th><th>資料來源 / 條件</th><th>操作</th></tr></thead>
@@ -12,8 +11,8 @@
     <td>{{ item.get_mode_display }}<small>{% if item.mode == 'fixed' %}{{ item.efficiency }}%{% else %}{{ item.get_axis_display }} · {{ item.points|length }} 點{% endif %}</small></td>
     <td>{% if item.provisional %}<span class="badge pending">暫定</span>{% else %}<span class="badge">非暫定</span>{% endif %}</td>
     <td>{{ item.source|default:'—' }}{% if item.mode == 'curve' %}<details><summary>查看曲線資料</summary><pre>{{ item.points }}</pre></details>{% endif %}</td>
-    <td>{% if request.user.is_staff %}<a href="{% url 'main:ic-edit' kind item.pk %}">編輯</a> <a class="danger" href="{% url 'main:ic-delete' kind item.pk %}">刪除</a>{% else %}唯讀{% endif %}</td>
-</tr>{% empty %}<tr><td colspan="5">{% if query %}沒有符合搜尋的設定。{% else %}尚無 IC 設定，請登入後新增。{% endif %}</td></tr>{% endfor %}</tbody>
+    <td><a href="{% url 'main:ic-edit' kind item.pk %}">編輯</a> <a class="danger" href="{% url 'main:ic-delete' kind item.pk %}">刪除</a></td>
+</tr>{% empty %}<tr><td colspan="5">{% if query %}沒有符合搜尋的設定。{% else %}尚無 IC 設定，請新增。{% endif %}</td></tr>{% endfor %}</tbody>
 </table></div>
 <p class="hint">暫定數據僅供預估。曲線以線性插值計算；超過取樣範圍使用端點效率，計算結果會顯示提示。</p>
 {% endblock %}

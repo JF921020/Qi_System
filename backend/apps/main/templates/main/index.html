@@ -546,9 +546,7 @@
         <div class="dig-step">
             <div class="dig-step-title"><span class="dig-num"></span> 儲存</div>
             <button class="dig-btn" style="background:var(--eff-green); padding:8px 20px; font-size:0.9em;" onclick="saveDigitizedCurve()">套用本次計算</button>
-            {% if request.user.is_staff %}
             <button id="digDatabaseSave" class="dig-btn" data-rx-url="{% url 'main:ic-new' 'rx' %}" data-charger-url="{% url 'main:ic-new' 'charger' %}" onclick="saveDigitizedToDatabase()">命名並儲存到資料庫</button>
-            {% else %}<p>本次套用不會永久保存；如需儲存曲線，請先至 IC 管理頁登入管理者。</p>{% endif %}
             <div id="digSaveMsg" style="margin-top:8px; font-size:0.85em;"></div>
         </div>
 

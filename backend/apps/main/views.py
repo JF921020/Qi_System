@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 
 from django.contrib import messages
-from django.contrib.admin.views.decorators import staff_member_required
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.http import Http404, JsonResponse
@@ -51,7 +50,6 @@ def ic_list(request, kind):
     return render(request, "main/ic_list.html", {"kind": kind, "title": title, "items": items, "query": query})
 
 
-@staff_member_required
 @require_http_methods(["GET", "POST"])
 def ic_edit(request, kind, pk=None):
     title = kind_title(kind)
@@ -72,7 +70,6 @@ def ic_edit(request, kind, pk=None):
     return render(request, "main/ic_form.html", {"kind": kind, "title": title, "form": form, "item": item})
 
 
-@staff_member_required
 @require_http_methods(["GET", "POST"])
 def ic_delete(request, kind, pk):
     title = kind_title(kind)

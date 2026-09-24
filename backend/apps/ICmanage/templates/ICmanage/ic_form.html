@@ -1,4 +1,4 @@
-{% extends 'main/ic_base.html' %}
+{% extends 'ICmanage/ic_base.html' %}
 {% block content %}
 <p class="eyebrow">{{ title }} / NAMED SETTINGS</p>
 <h1>{% if item.pk %}編輯{% else %}新增{% endif %} {{ title }} 設定</h1>
@@ -7,6 +7,6 @@
     {% csrf_token %}
     {{ form.non_field_errors }}
     {% for field in form %}<div class="field">{{ field.label_tag }}{{ field }}{{ field.errors }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}</div>{% endfor %}
-    <div class="actions"><button type="submit">儲存設定</button><a href="{% url 'main:ic-list' kind %}">取消</a></div>
+    <div class="actions"><button type="submit">儲存設定</button><a href="{% url 'ICmanage:ic-list' kind %}">取消</a></div>
 </form>
 {% endblock %}

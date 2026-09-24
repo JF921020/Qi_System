@@ -1,7 +1,7 @@
-{% extends 'main/ic_base.html' %}
+{% extends 'ICmanage/ic_base.html' %}
 {% block content %}
 <h1>刪除 {{ title }} 設定</h1>
 <div class="editor"><p>確定刪除「<strong>{{ item.name }}</strong>」（{{ item.model_number }}）？</p>
 <p>此操作無法復原。已開啟的計算頁若仍選用此設定，需重新整理並選擇其他型號。</p>
-<form method="post">{% csrf_token %}<div class="actions"><button class="danger-button" type="submit">確認刪除</button><a href="{% url 'main:ic-list' kind %}">取消</a></div></form></div>
+<form method="post">{% csrf_token %}<div class="actions"><button class="danger-button" type="submit">確認刪除</button><a href="{% url 'ICmanage:ic-list' kind %}">取消</a></div></form></div>
 {% endblock %}

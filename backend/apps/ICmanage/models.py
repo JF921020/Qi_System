@@ -3,7 +3,7 @@ import uuid
 from django.core.exceptions import ValidationError
 from django.db import models
 
-from .service import number
+from apps.main.service import number
 
 
 def ic_code():
@@ -24,6 +24,7 @@ class ICSetting(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        db_table = "main_icsetting"
         ordering = ("kind", "name")
         constraints = (models.UniqueConstraint(fields=["kind", "name"], name="unique_ic_setting_name"),)
 

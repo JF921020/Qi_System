@@ -19,7 +19,7 @@
         <li id="tab-qi2" class="nav-item tab-btn" onclick="switchDisplayTab('qi2')">🧲 相容Qi 2定位</li>
         <li id="tab-history" class="nav-item tab-btn" onclick="switchDisplayTab('history')">💾 歷史數據</li>
         <li id="tab-advisor" class="nav-item tab-btn" onclick="switchDisplayTab('advisor')">🧠 智慧反推</li>
-        <li class="nav-item"><a href="{% url 'main:ic-list' 'rx' %}" style="color:inherit;text-decoration:none;">🔌 IC 管理</a></li>
+        <li class="nav-item"><a href="{% url 'ICmanage:ic-list' 'rx' %}" style="color:inherit;text-decoration:none;">🔌 IC 管理</a></li>
     </ul>
     <div class="nav-footer">
         <button type="button" class="btn-calc" onclick="triggerCalc()">▶ 立即計算</button>
@@ -545,7 +545,7 @@
         <div class="dig-step">
             <div class="dig-step-title"><span class="dig-num"></span> 儲存</div>
             <button class="dig-btn" style="background:var(--eff-green); padding:8px 20px; font-size:0.9em;" onclick="saveDigitizedCurve()">套用本次計算</button>
-            <button id="digDatabaseSave" class="dig-btn" data-rx-url="{% url 'main:ic-new' 'rx' %}" data-charger-url="{% url 'main:ic-new' 'charger' %}" onclick="saveDigitizedToDatabase()">命名並儲存到資料庫</button>
+            <button id="digDatabaseSave" class="dig-btn" data-rx-url="{% url 'ICmanage:ic-new' 'rx' %}" data-charger-url="{% url 'ICmanage:ic-new' 'charger' %}" onclick="saveDigitizedToDatabase()">命名並儲存到資料庫</button>
             <div id="digSaveMsg" style="margin-top:8px; font-size:0.85em;"></div>
         </div>
 

@@ -5,14 +5,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ title }} 管理</title>
-    <link rel="stylesheet" href="{% static 'main/ic-manager.css' %}">
+    <link rel="stylesheet" href="{% static 'ICmanage/ic-manager.css' %}">
 </head>
 <body>
 <header><span>IC 資料管理</span></header>
 <nav aria-label="IC 管理導覽">
     <a href="{% url 'main:index' %}">← 返回效能計算</a>
-    <a href="{% url 'main:ic-list' 'rx' %}" {% if kind == 'rx' %}aria-current="page"{% endif %}>Rx IC 管理</a>
-    <a href="{% url 'main:ic-list' 'charger' %}" {% if kind == 'charger' %}aria-current="page"{% endif %}>Charger IC 管理</a>
+    <a href="{% url 'ICmanage:ic-list' 'rx' %}" {% if kind == 'rx' %}aria-current="page"{% endif %}>Rx IC 管理</a>
+    <a href="{% url 'ICmanage:ic-list' 'charger' %}" {% if kind == 'charger' %}aria-current="page"{% endif %}>Charger IC 管理</a>
 </nav>
 <main>
     {% for message in messages %}<p class="notice" role="status">{{ message }}</p>{% endfor %}

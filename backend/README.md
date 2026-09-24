@@ -16,9 +16,9 @@
 - `apps/main/static/main/qi-tool.css`：頁面樣式。
 - `apps/main/static/main/qi-tool-*.js`：API 呼叫、結果顯示、繪圖、歷史資料及互動功能模組。
 - `apps/main/service.py`：效率計算純函式與輸入驗證，未來修改公式的入口。
-- `apps/main/models.py`、`forms.py`、`catalog.py`：IC 命名設定、驗證與資料庫查表。
+- `apps/ICmanage/`：IC 管理的 model、form、catalog、view、URL、模板、樣式、admin 與測試。
 - `apps/main/curves.json`：原始曲線基準，保留作舊版計算比對；線上計算使用資料庫。
-- `apps/main/views.py`、`urls.py`：頁面入口與路由。
+- `apps/main/views.py`、`urls.py`：計算頁、效率 API 與路由。
 
 原始外部 HTML 保留不動；現有 `frontend` 目錄不參與此頁面。
 CSS 與 JS 透過 Django 的 `{% static %}` 引用；JS 保持一般 script，讓 HTML 的 onclick 等事件仍可呼叫原有函式。
@@ -63,7 +63,7 @@ Django 負責頁面與主要效率 API：IC 曲線插值、ACR、Qrx、線圈／
 
 ```powershell
 .\venv\Scripts\python.exe manage.py check
-.\venv\Scripts\python.exe manage.py test apps.main
+.\venv\Scripts\python.exe manage.py test apps.main apps.ICmanage
 Get-ChildItem apps/main/static/main/qi-tool-*.js | ForEach-Object { node --check $_.FullName }
 node apps/main/testdata/request_flow.cjs
 ```

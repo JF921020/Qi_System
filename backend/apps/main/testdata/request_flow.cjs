@@ -1,10 +1,50 @@
-// Run from backend: node apps/calculator/testdata/request_flow.cjs
+// Run from backend: node apps/main/testdata/request_flow.cjs
 // Check real request scheduling without a browser or additional dependencies.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
-const source = fs.readFileSync(path.join(__dirname, '../static/calculator/qi-tool.js'), 'utf8');
+const staticDir = path.join(__dirname, '../static/main');
+const modules = [
+    'core', 'layout', 'calculation', 'events', 'history-data',
+    'history', 'advisor', 'digitizer', 'app',
+];
+const readyCallbacks = [];
+const loadContext = vm.createContext({
+    document: {
+        getElementById: id => id === 'qi-curves'
+            ? {textContent: '{"rx":{},"charger":{},"rxFixed":{},"chargerFixed":{}}'}
+            : {},
+        addEventListener: (event, callback) => readyCallbacks.push({event, callback}),
+    },
+    window: {},
+});
+modules.forEach(name => vm.runInContext(
+    fs.readFileSync(path.join(staticDir, `qi-tool-${name}.js`), 'utf8'),
+    loadContext,
+    {filename: `qi-tool-${name}.js`},
+));
+assert.equal(vm.runInContext('typeof triggerCalc', loadContext), 'function');
+assert.equal(vm.runInContext('typeof renderDiagAdvice', loadContext), 'function');
+assert.equal(vm.runInContext('typeof saveDigitizedCurve', loadContext), 'function');
+assert.equal(readyCallbacks.length, 2, 'digitizer and app initializers are registered');
+
+let nonNegativeListener;
+const negativeInput = {
+    value: '-2', valueAsNumber: -2,
+    addEventListener: (event, listener) => { nonNegativeListener = listener; },
+};
+vm.runInNewContext(fs.readFileSync(path.join(staticDir, 'qi-tool-app.js'), 'utf8'), {
+    document: {
+        addEventListener: (event, callback) => callback(),
+        querySelectorAll: () => [negativeInput],
+    },
+    initEventListeners() {}, syncUIInputs() {}, triggerCalc() {}, switchDisplayTab() {},
+});
+nonNegativeListener();
+assert.equal(negativeInput.value, '0', 'negative numeric input is clamped to zero');
+
+const source = fs.readFileSync(path.join(__dirname, '../static/main/qi-tool-calculation.js'), 'utf8');
 const flow = source.slice(source.indexOf('let calcController;'), source.indexOf('function renderCalculation'));
 const elements = new Map();
 const pending = [];
@@ -43,6 +83,7 @@ const response = body => ({ok: true, headers: {get: () => 'application/json'}, j
     assert.equal(pending[0].options.signal.aborted, true);
     pending[1].resolve(response({id: 'new', warnings: []}));
     await settle();
+    assert.equal(elements.get('calcStatus').textContent, '', 'successful calculations do not show a status message');
     pending[0].resolve(response({id: 'old', warnings: []}));
     await settle();
     assert.deepEqual(rendered.map(r => r.id), ['new'], 'stale response never renders');

@@ -1,27 +1,50 @@
 import copy
 import json
 import math
+import re
 from pathlib import Path
 
 from django.contrib.staticfiles import finders
-from django.test import Client, SimpleTestCase
+from django.test import Client, TestCase
 from django.urls import reverse
 
 from .service import calculate
 
-class CalculatorPageTests(SimpleTestCase):
+
+class MainPageTests(TestCase):
     def test_page_and_static_assets(self):
-        response = self.client.get(reverse("calculator:index"))
+        response = self.client.get(reverse("main:index"))
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, "calculator/index.html")
+        self.assertTemplateUsed(response, "main/index.html")
         self.assertContains(response, "Qi無線充電預測工具")
-        for asset in ("qi-tool.css", "qi-tool.js"):
-            self.assertContains(response, f'/static/calculator/{asset}')
-            self.assertIsNotNone(finders.find(f"calculator/{asset}"))
+        assets = (
+            "qi-tool.css", "qi-tool-core.js", "qi-tool-layout.js",
+            "qi-tool-calculation.js", "qi-tool-events.js",
+            "qi-tool-history-data.js", "qi-tool-history.js",
+            "qi-tool-advisor.js", "qi-tool-digitizer.js", "qi-tool-app.js",
+        )
+        for asset in assets:
+            self.assertContains(response, f'/static/main/{asset}')
+            self.assertIsNotNone(finders.find(f"main/{asset}"))
+        self.assertIsNone(re.search(r'<input(?=[^>]*type="number")(?![^>]*min="0")[^>]*>', response.content.decode()))
+        self.assertIsNone(re.search(r'on\w+="[^"]*\bevent\b', response.content.decode()))
         self.assertNotContains(response, "{%")
 
+    def test_form_controls_have_accessible_labels(self):
+        html = self.client.get(reverse("main:index")).content.decode()
+        for tag in re.findall(r"<(?:input|select|textarea)\b[^>]*>", html):
+            if re.search(r'\btype=["\']hidden["\']', tag):
+                continue
+            control_id = re.search(r'\bid=["\']([^"\']+)["\']', tag)
+            self.assertIsNotNone(control_id, tag)
+            if re.search(r'\baria-label(?:ledby)?=["\'][^"\']+["\']', tag):
+                continue
+            self.assertRegex(
+                html, rf'<label\b[^>]*\bfor=["\']{re.escape(control_id.group(1))}["\']'
+            )
 
-class CalculationTests(SimpleTestCase):
+
+class CalculationTests(TestCase):
     cases = json.loads((Path(__file__).parent / "testdata/legacy_results.json").read_text(encoding="utf-8"))
 
     def payload(self, **overrides):
@@ -40,7 +63,7 @@ class CalculationTests(SimpleTestCase):
                     self.assertAlmostEqual(actual["pInTotal"], actual["pOut"] + actual["coilLoss"] + actual["icLoss"])
 
     def test_api_validation_and_csrf(self):
-        url = reverse("calculator:calculate")
+        url = reverse("main:main")
         self.assertEqual(self.client.get(url).status_code, 405)
         self.assertEqual(self.client.post(url, "bad", content_type="text/plain").status_code, 415)
         for invalid in ("{", "[]", "null", '{"state":{}}'):
@@ -51,7 +74,7 @@ class CalculationTests(SimpleTestCase):
                 self.assertEqual(response.status_code, 400)
         client = Client(enforce_csrf_checks=True)
         self.assertEqual(client.post(url, self.payload(), content_type="application/json").status_code, 403)
-        client.get(reverse("calculator:index"))
+        client.get(reverse("main:index"))
         response = client.post(url, self.payload(), content_type="application/json", HTTP_X_CSRFTOKEN=client.cookies["csrftoken"].value)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["modelVersion"], "lqk-v1")

@@ -8,7 +8,7 @@ const RX_LEAD_GAP_ARC_MM = 9.55;
 const RX_LEAD_GAP_HALF_ANGLE_DEG = 11.00;
 const RX_LEAD_GAP_HALF_ANGLE_RAD = RX_LEAD_GAP_HALF_ANGLE_DEG * Math.PI / 180;
 
-// Built-in curves come from Django; used here for labels and advisor range hints.
+// IC curves come from Django; calculation, labels and advisor share this catalog.
 const curveCatalog = JSON.parse(document.getElementById('qi-curves').textContent);
 const RX_EFF_CURVES = curveCatalog.rx;
 const CHARGER_EFF_CURVES = curveCatalog.charger;

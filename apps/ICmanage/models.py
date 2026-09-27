@@ -1,9 +1,16 @@
+import math
 import uuid
 
 from django.core.exceptions import ValidationError
 from django.db import models
 
-from apps.main.service import number
+def number(value, field, minimum=0, maximum=1_000_000):
+    """Validate numeric IC settings before database writes."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{field} 必須是數字")
+    if not minimum <= value <= maximum or not math.isfinite(value):
+        raise ValueError(f"{field} 必須介於 {minimum} 與 {maximum}")
+    return value
 
 
 def ic_code():

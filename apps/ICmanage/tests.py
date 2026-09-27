@@ -1,5 +1,3 @@
-import json
-
 from django.test import Client, TestCase
 from django.urls import reverse
 
@@ -34,25 +32,24 @@ class ICManagementTests(TestCase):
             self.assertEqual(item.points, [[0, 60], [2, 80], [4, 90]])
             self.assertContains(self.client.get(reverse("main:index")), item.code)
             field = "rxIc" if kind == "rx" else "chargerIc"
-            payload = {"state": {**main_tests.CalculationTests.cases[0]["input"], field + "Select": item.code, "sysPower": 3}}
-            result = self.client.post(reverse("main:main"), payload, content_type="application/json")
-            self.assertEqual(result.status_code, 200)
-            self.assertEqual(result.json()[field + "Eff"], 85)
-            self.assertIn("暫定", result.json()["rxTip" if kind == "rx" else "chargerTip"])
+            payload = {"state": {**main_tests.BASE_STATE, field + "Select": item.code, "sysPower": 3}}
+            result = main_tests.calculate_js(payload["state"], self.client.get(reverse("main:index")).context["curves"])
+            self.assertEqual(result[field + "Eff"], 85)
+            self.assertIn("暫定", result["rxTip" if kind == "rx" else "chargerTip"])
             edit_url = reverse("ICmanage:ic-edit", args=[kind, item.pk])
             self.assertEqual(self.client.post(edit_url, self.data(name="已改名", mode="fixed", efficiency="77", points="", provisional="")).status_code, 302)
             item.refresh_from_db()
             self.assertEqual(item.name, "已改名")
             self.assertFalse(item.provisional)
             self.assertEqual(item.points, [])
-            result = self.client.post(reverse("main:main"), payload, content_type="application/json")
-            self.assertEqual(result.json()[field + "Eff"], 77)
-            self.assertNotIn("暫定", result.json()["rxTip" if kind == "rx" else "chargerTip"])
+            result = main_tests.calculate_js(payload["state"], self.client.get(reverse("main:index")).context["curves"])
+            self.assertEqual(result[field + "Eff"], 77)
+            self.assertNotIn("暫定", result["rxTip" if kind == "rx" else "chargerTip"])
             delete_url = reverse("ICmanage:ic-delete", args=[kind, item.pk])
             self.assertEqual(self.client.get(delete_url).status_code, 200)
             self.assertTrue(ICSetting.objects.filter(pk=item.pk).exists())
             self.assertEqual(self.client.post(delete_url).status_code, 302)
-            self.assertEqual(self.client.post(reverse("main:main"), payload, content_type="application/json").status_code, 400)
+            self.assertNotIn(item.code, self.client.get(reverse("main:index")).context["curves"][kind + "Fixed"])
 
     def test_invalid_data_and_duplicate_names(self):
         url = reverse("ICmanage:ic-new", args=["rx"])
@@ -92,8 +89,7 @@ class ICManagementTests(TestCase):
     def test_database_overrides_original_catalog_and_zero_fixed(self):
         item = ICSetting.objects.get(code="cps4019")
         self.client.post(reverse("ICmanage:ic-edit", args=["rx", item.pk]), self.data(mode="fixed", efficiency="0", points=""))
-        payload = {"state": {**main_tests.CalculationTests.cases[0]["input"], "rxIcSelect": "cps4019"}, "customCurves": {"rx": {"axis": "power", "data": [[0,100],[1,100],[2,100]]}}}
-        response = self.client.post(reverse("main:main"), json.dumps(payload), content_type="application/json")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["rxIcEff"], 0)
-        self.assertIsNone(response.json()["pInTotal"])
+        payload = {"state": {**main_tests.BASE_STATE, "rxIcSelect": "cps4019"}}
+        response = main_tests.calculate_js(payload["state"], self.client.get(reverse("main:index")).context["curves"])
+        self.assertEqual(response["rxIcEff"], 0)
+        self.assertIsNone(response["pInTotal"])

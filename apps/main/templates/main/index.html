@@ -6,7 +6,7 @@
     <title>Qi無線充電預測工具_TWS (相容定位功能)</title>
     <link rel="stylesheet" href="{% static 'main/qi-tool.css' %}">
 </head>
-<body data-calculate-url="{% url 'main:main' %}">
+<body>
 {% csrf_token %}
 {{ curves|json_script:"qi-curves"}}
 

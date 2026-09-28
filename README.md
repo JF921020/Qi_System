@@ -71,5 +71,17 @@ node apps/main/testdata/request_flow.cjs
 
 測試包含移植前由原始 JS 擷取的 20 組案例（`testdata/legacy_results.json`）、能量守恆、自訂曲線、錯誤输入、IC 管理 CSRF、即時計算與錯誤恢復（不使用網路請求）。
 
-正式部署時需依環境設定 SECRET_KEY、DEBUG、ALLOWED_HOSTS，並執行 `manage.py collectstatic`，由靜態檔案伺服器提供 `staticfiles` 目錄。
+## Ubuntu / Gunicorn 靜態檔案
+
+專案已啟用 WhiteNoise，由應用程式提供收集到 `staticfiles` 的 CSS、JS 與 Django admin 靜態檔案。Gunicorn 不會像開發用的 `runserver` 自動提供各 app 的靜態檔案，因此每次部署更新後，請在專案目錄、啟用 Ubuntu 的 Python 虛擬環境後執行：
+
+```bash
+python -m pip install -r requirements.txt
+python manage.py collectstatic --noinput
+gunicorn config.wsgi:application --bind 0.0.0.0:8000
+```
+
+若 Gunicorn 已由 systemd 等服務管理，執行 `collectstatic` 後重啟原服務即可。可用 `curl -I http://127.0.0.1:8000/static/main/qi-tool.css` 確認回傳 200。若經過 Nginx，請讓 `/static/` 轉送至應用程式，或將其 alias 指向本次部署的 `staticfiles/`；錯誤的 Nginx 靜態檔案設定仍會造成 404。
+
+正式部署時需依環境設定 SECRET_KEY、DEBUG、ALLOWED_HOSTS。
 資源配置依循 [Django 靜態檔案文件](https://docs.djangoproject.com/en/dev/howto/static-files/)。

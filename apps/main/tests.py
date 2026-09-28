@@ -1,10 +1,12 @@
 import json
 import re
 import subprocess
+from tempfile import TemporaryDirectory
 from pathlib import Path
 
 from django.contrib.staticfiles import finders
-from django.test import TestCase
+from django.core.management import call_command
+from django.test import Client, SimpleTestCase, TestCase
 from django.urls import reverse
 
 
@@ -19,6 +21,29 @@ def calculate_js(state, catalog):
         capture_output=True, text=True, encoding="utf-8", check=True,
     )
     return json.loads(result.stdout)
+
+
+class StaticDeploymentTests(SimpleTestCase):
+    def test_collected_assets_are_served_without_debug(self):
+        with TemporaryDirectory() as static_root:
+            with self.settings(DEBUG=False, STATIC_ROOT=static_root):
+                call_command("collectstatic", interactive=False, verbosity=0)
+                client = Client()
+                assets = [
+                    path.relative_to(app / "static").as_posix()
+                    for app in (Path(__file__).parent, Path(__file__).parent.parent / "ICmanage")
+                    for path in (app / "static").rglob("*")
+                    if path.suffix in (".css", ".js")
+                ]
+                self.assertTrue(assets)
+                for asset in [*assets, "admin/css/base.css"]:
+                    with self.subTest(asset=asset):
+                        response = client.get(f"/static/{asset}")
+                        try:
+                            self.assertEqual(response.status_code, 200)
+                            self.assertTrue(b"".join(response.streaming_content))
+                        finally:
+                            response.close()
 
 
 class MainPageTests(TestCase):

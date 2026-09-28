@@ -1,3 +1,5 @@
+from urllib.parse import urljoin
+
 from django.test import Client, TestCase
 from django.urls import reverse
 
@@ -7,6 +9,24 @@ from .models import ICSetting
 
 
 class ICManagementTests(TestCase):
+    def test_crud_redirects_preserve_proxy_prefix(self):
+        for kind in ("rx", "charger"):
+            new_url = reverse("ICmanage:ic-new", args=[kind])
+            created = self.client.post(new_url, self.data())
+            item = ICSetting.objects.get(kind=kind, name="測試設定")
+            edit_url = reverse("ICmanage:ic-edit", args=[kind, item.pk])
+            edited = self.client.post(edit_url, self.data())
+            delete_url = reverse("ICmanage:ic-delete", args=[kind, item.pk])
+            deleted = self.client.post(delete_url)
+            for url, response in ((new_url, created), (edit_url, edited), (delete_url, deleted)):
+                self.assertEqual(response.status_code, 302)
+                self.assertTrue(response["Location"].startswith("../"))
+                for prefix in ("", "/proxy/8000"):
+                    self.assertEqual(
+                        urljoin(prefix + url, response["Location"]),
+                        prefix + reverse("ICmanage:ic-list", args=[kind]),
+                    )
+
     def data(self, **overrides):
         return {
             "name": "測試設定", "model_number": "TEST-01", "mode": "curve",

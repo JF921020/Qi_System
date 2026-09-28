@@ -92,7 +92,7 @@ gunicorn config.wsgi:application --bind 0.0.0.0:8000
 
 若 Gunicorn 已由 systemd 等服務管理，執行 `collectstatic` 後重啟原服務即可。可用 `curl -I http://127.0.0.1:8000/static/main/qi-tool.css` 確認回傳 200。若經過 Nginx，請讓 `/static/` 轉送至應用程式，或將其 alias 指向本次部署的 `staticfiles/`；錯誤的 Nginx 靜態檔案設定仍會造成 404。
 
-若瀏覽器入口是 `http://localhost:8400/proxy/8000/`，且代理會移除 `/proxy/8000` 再轉送，請在 `.env` 設定 `FORCE_SCRIPT_NAME=/proxy/8000` 並重啟 Django/Gunicorn。這讓靜態檔案及站內連結帶上代理前綴；`STATIC_URL` 保持 `static/`。直接用 8000 port 存取時則保持此變數空白。可在瀏覽器開啟 `http://localhost:8400/proxy/8000/static/main/qi-tool.css` 確認代理後的 CSS 能正常取得。
+若瀏覽器入口是 `http://localhost:8400/proxy/8000/`，且代理會移除 `/proxy/8000` 再轉送，請在 `.env` 設定 `FORCE_SCRIPT_NAME=/proxy/8000` 並重啟 Django/Gunicorn。這讓靜態檔案及站內連結帶上代理前綴；`STATIC_URL` 由設定中的 `FORCE_SCRIPT_NAME` 明確組成，避免靜態網址在初始化時漏掉前綴。直接用 8000 port 存取時則保持此變數空白。可在瀏覽器開啟 `http://localhost:8400/proxy/8000/static/main/qi-tool.css` 確認代理後的 CSS 能正常取得。
 
 正式部署時需依環境設定 SECRET_KEY、DEBUG、ALLOWED_HOSTS。
 資源配置依循 [Django 靜態檔案文件](https://docs.djangoproject.com/en/dev/howto/static-files/)。

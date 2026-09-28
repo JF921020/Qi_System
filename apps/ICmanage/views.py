@@ -39,7 +39,8 @@ def ic_edit(request, kind, pk=None):
                 else:
                     saved.save()
                     messages.success(request, "IC 設定已儲存；計算頁重新載入後即可選用。")
-                    return redirect("ICmanage:ic-list", kind=kind)
+                    # Relative locations preserve the proxy mount without double-prefixing.
+                    return redirect("../../" if pk else "../")
         except IntegrityError:
             form.add_error("name", "此類 IC 已有同名設定，請使用其他名稱。")
     return render(request, "ICmanage/ic_form.html", {"kind": kind, "title": title, "form": form, "item": item})
@@ -52,5 +53,5 @@ def ic_delete(request, kind, pk):
     if request.method == "POST":
         item.delete()
         messages.success(request, "IC 設定已刪除。")
-        return redirect("ICmanage:ic-list", kind=kind)
+        return redirect("../../")
     return render(request, "ICmanage/ic_delete.html", {"kind": kind, "title": title, "item": item})

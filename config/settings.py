@@ -32,6 +32,9 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+# External mount path when a reverse proxy strips the prefix before forwarding.
+FORCE_SCRIPT_NAME = os.getenv("FORCE_SCRIPT_NAME") or None
+
 
 # Application definition
 

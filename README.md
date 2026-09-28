@@ -73,6 +73,15 @@ node apps/main/testdata/request_flow.cjs
 
 ## Ubuntu / Gunicorn 靜態檔案
 
+首次安裝 Python 套件前，先安裝 `mysqlclient` 的系統編譯依賴（[官方安裝說明](https://github.com/PyMySQL/mysqlclient/blob/main/README.md)）：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y python3-dev default-libmysqlclient-dev build-essential pkg-config
+```
+
+若在容器內，需在同一容器安裝；以 root 執行時省略 `sudo`。Python 開發標頭需符合虛擬環境的 Python 版本。缺少 `pkg-config` 時，`pip install` 會在編譯 `mysqlclient` 前失敗。開發環境可使用 `python -m pip install -r requirements-dev.txt`，其已包含正式依賴。
+
 專案已啟用 WhiteNoise，由應用程式提供收集到 `staticfiles` 的 CSS、JS 與 Django admin 靜態檔案。Gunicorn 不會像開發用的 `runserver` 自動提供各 app 的靜態檔案，因此每次部署更新後，請在專案目錄、啟用 Ubuntu 的 Python 虛擬環境後執行：
 
 ```bash
@@ -82,6 +91,8 @@ gunicorn config.wsgi:application --bind 0.0.0.0:8000
 ```
 
 若 Gunicorn 已由 systemd 等服務管理，執行 `collectstatic` 後重啟原服務即可。可用 `curl -I http://127.0.0.1:8000/static/main/qi-tool.css` 確認回傳 200。若經過 Nginx，請讓 `/static/` 轉送至應用程式，或將其 alias 指向本次部署的 `staticfiles/`；錯誤的 Nginx 靜態檔案設定仍會造成 404。
+
+若瀏覽器入口是 `http://localhost:8400/proxy/8000/`，且代理會移除 `/proxy/8000` 再轉送，請在 `.env` 設定 `FORCE_SCRIPT_NAME=/proxy/8000` 並重啟 Django/Gunicorn。這讓靜態檔案及站內連結帶上代理前綴；`STATIC_URL` 保持 `static/`。直接用 8000 port 存取時則保持此變數空白。可在瀏覽器開啟 `http://localhost:8400/proxy/8000/static/main/qi-tool.css` 確認代理後的 CSS 能正常取得。
 
 正式部署時需依環境設定 SECRET_KEY、DEBUG、ALLOWED_HOSTS。
 資源配置依循 [Django 靜態檔案文件](https://docs.djangoproject.com/en/dev/howto/static-files/)。

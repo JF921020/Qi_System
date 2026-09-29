@@ -96,3 +96,12 @@ gunicorn config.wsgi:application --bind 0.0.0.0:8000
 
 正式部署時需依環境設定 SECRET_KEY、DEBUG、ALLOWED_HOSTS。
 資源配置依循 [Django 靜態檔案文件](https://docs.djangoproject.com/en/dev/howto/static-files/)。
+
+
+DB建立指令
+```bash
+-- 建立一個名為 test_db 的資料庫，並設定好中文與 Emoji 編碼
+CREATE DATABASE test_db 
+CHARACTER SET utf8mb4 
+COLLATE utf8mb4_unicode_ci;
+```

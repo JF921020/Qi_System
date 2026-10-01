@@ -13,6 +13,17 @@ from .models import ICSetting
 
 
 class ICManagementTests(TestCase):
+    def test_import_is_the_only_creation_entry(self):
+        before = ICSetting.objects.count()
+        for kind in ("rx", "charger"):
+            page = self.client.get(reverse("ICmanage:ic-list", args=[kind]))
+            self.assertContains(page, reverse("ICmanage:ic-import", args=[kind]))
+            self.assertNotContains(page, "新增命名設定")
+            self.assertEqual(self.client.get(f"/ics/{kind}/new/").status_code, 404)
+            self.assertEqual(self.client.post(f"/ics/{kind}/new/", self.data()).status_code, 404)
+        self.assertNotContains(self.client.get(reverse("main:index")), "digDatabaseSave")
+        self.assertEqual(ICSetting.objects.count(), before)
+
     def test_fixed_efficiency_display_rounds_without_changing_stored_value(self):
         item = ICSetting.objects.get(code="cps4019")
         item.mode, item.efficiency, item.points = "fixed", 92.35, []
@@ -23,7 +34,7 @@ class ICManagementTests(TestCase):
 
     def test_ic_status_is_not_exposed_in_management_or_catalog(self):
         for kind in ("rx", "charger"):
-            for route in ("ic-list", "ic-new", "ic-import"):
+            for route in ("ic-list", "ic-import"):
                 page = self.client.get(reverse("ICmanage:" + route, args=[kind]))
                 self.assertNotContains(page, 'class="badge pending"')
                 self.assertNotContains(page, 'name="provisional"')
@@ -34,14 +45,12 @@ class ICManagementTests(TestCase):
 
     def test_crud_redirects_preserve_proxy_prefix(self):
         for kind in ("rx", "charger"):
-            new_url = reverse("ICmanage:ic-new", args=[kind])
-            created = self.client.post(new_url, self.data())
-            item = ICSetting.objects.get(kind=kind, name="測試設定")
+            item = ICSetting.objects.filter(kind=kind).first()
             edit_url = reverse("ICmanage:ic-edit", args=[kind, item.pk])
             edited = self.client.post(edit_url, self.data())
             delete_url = reverse("ICmanage:ic-delete", args=[kind, item.pk])
             deleted = self.client.post(delete_url)
-            for url, response in ((new_url, created), (edit_url, edited), (delete_url, deleted)):
+            for url, response in ((edit_url, edited), (delete_url, deleted)):
                 self.assertEqual(response.status_code, 302)
                 self.assertTrue(response["Location"].startswith("../"))
                 for prefix in ("", "/proxy/8000"):
@@ -68,7 +77,9 @@ class ICManagementTests(TestCase):
 
     def test_named_crud_and_database_lookup(self):
         for kind in ("rx", "charger"):
-            response = self.client.post(reverse("ICmanage:ic-new", args=[kind]), self.data())
+            existing = ICSetting.objects.create(kind=kind, name="待編輯", model_number="TEST",
+                                                mode="fixed", efficiency=80)
+            response = self.client.post(reverse("ICmanage:ic-edit", args=[kind, existing.pk]), self.data())
             self.assertEqual(response.status_code, 302)
             item = ICSetting.objects.get(kind=kind, name="測試設定")
             self.assertEqual(item.points, [[0, 60], [2, 80], [4, 90]])
@@ -93,7 +104,8 @@ class ICManagementTests(TestCase):
             self.assertNotIn(item.code, self.client.get(reverse("main:index")).context["curves"][kind + "Fixed"])
 
     def test_invalid_data_and_duplicate_names(self):
-        url = reverse("ICmanage:ic-new", args=["rx"])
+        item = ICSetting.objects.get(code="cps4019")
+        url = reverse("ICmanage:ic-edit", args=["rx", item.pk])
         invalid = [
             {"points": "[[0,70],[0,80],[2,90]]"},
             {"points": "[[0,70],[1,101],[2,90]]"},
@@ -112,13 +124,14 @@ class ICManagementTests(TestCase):
                 self.assertTrue(response.context["form"].errors)
         self.assertEqual(ICSetting.objects.count(), 12)
         self.client.post(url, self.data())
-        response = self.client.post(url, self.data())
+        other = ICSetting.objects.filter(kind="rx").exclude(pk=item.pk).first()
+        response = self.client.post(reverse("ICmanage:ic-edit", args=["rx", other.pk]), self.data())
         self.assertIn("name", response.context["form"].errors)
         self.assertEqual(ICSetting.objects.filter(name="測試設定").count(), 1)
 
     def test_anonymous_access_csrf_and_kind_isolation(self):
         item = ICSetting.objects.get(code="cps4019")
-        urls = [reverse("ICmanage:ic-new", args=["rx"]), reverse("ICmanage:ic-edit", args=["rx", item.pk]), reverse("ICmanage:ic-delete", args=["rx", item.pk])]
+        urls = [reverse("ICmanage:ic-edit", args=["rx", item.pk]), reverse("ICmanage:ic-delete", args=["rx", item.pk])]
         for url in urls:
             self.assertEqual(self.client.get(url).status_code, 200)
         self.assertEqual(self.client.post(reverse("ICmanage:ic-delete", args=["charger", item.pk])).status_code, 404)
@@ -137,7 +150,8 @@ class ICManagementTests(TestCase):
 
     def test_ma_curve_matches_ampere_curve_after_save_and_reload(self):
         for kind in ("rx", "charger"):
-            url = reverse("ICmanage:ic-new", args=[kind])
+            existing = ICSetting.objects.filter(kind=kind).first()
+            url = reverse("ICmanage:ic-edit", args=[kind, existing.pk])
             response = self.client.post(url, self.data(axis="ma", points="[[100, 80], [500, 92], [1000, 95]]"))
             self.assertEqual(response.status_code, 302)
             item = ICSetting.objects.get(kind=kind, name="測試設定")

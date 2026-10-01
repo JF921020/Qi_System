@@ -195,32 +195,6 @@ function deleteDigPoint(i) { dig.points.splice(i, 1); redrawDigCanvas(); renderD
 function undoLastPoint() { dig.points.pop(); redrawDigCanvas(); renderDigPtTable(); }
 function clearAllPoints() { dig.points = []; redrawDigCanvas(); renderDigPtTable(); }
 
-function saveDigitizedToDatabase() {
-    const name = document.getElementById('digModelName').value.trim();
-    if (!name || dig.points.length < 3) {
-        document.getElementById('digSaveMsg').textContent = '請輸入型號名稱，並至少描出 3 個資料點。';
-        return;
-    }
-    const button = document.getElementById('digDatabaseSave');
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = dig.target === 'rx' ? button.dataset.rxUrl : button.dataset.chargerUrl;
-    const fields = {
-        csrfmiddlewaretoken: document.querySelector('[name=csrfmiddlewaretoken]').value,
-        name, model_number: name, mode: 'curve',
-        axis: document.getElementById('digAxisType').value,
-        points: JSON.stringify(dig.points.map(p => [p.x, p.y])),
-        source: '使用者手動數位化',
-    };
-    for (const [key, value] of Object.entries(fields)) {
-        const input = document.createElement('input');
-        input.type = 'hidden'; input.name = key; input.value = value;
-        form.appendChild(input);
-    }
-    document.body.appendChild(form);
-    form.submit();
-}
-
 function saveDigitizedCurve() {
     const msgEl = document.getElementById('digSaveMsg');
     const modelName = document.getElementById('digModelName').value.trim();

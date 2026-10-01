@@ -1,7 +1,7 @@
 {% extends 'ICmanage/ic_base.html' %}
 {% block content %}
 <p class="eyebrow">{{ title }} / NAMED SETTINGS</p>
-<h1>{% if item.pk %}編輯{% else %}新增{% endif %} {{ title }} 設定</h1>
+<h1>編輯 {{ title }} 設定</h1>
 <p>以名稱保存型號與效率設定；儲存後會加入效能計算的型號選單。</p>
 <form class="editor" method="post">
     {% csrf_token %}

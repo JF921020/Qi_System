@@ -49,9 +49,9 @@ def ic_import(request, kind):
 
 
 @require_http_methods(["GET", "POST"])
-def ic_edit(request, kind, pk=None):
+def ic_edit(request, kind, pk):
     title = kind_title(kind)
-    item = get_object_or_404(ICSetting, pk=pk, kind=kind) if pk else ICSetting(kind=kind)
+    item = get_object_or_404(ICSetting, pk=pk, kind=kind)
     form = ICSettingForm(request.POST if request.method == "POST" else None, instance=item)
     if request.method == "POST" and form.is_valid():
         try:
@@ -63,7 +63,7 @@ def ic_edit(request, kind, pk=None):
                     saved.save()
                     messages.success(request, "IC 設定已儲存；計算頁重新載入後即可選用。")
                     # Relative locations preserve the proxy mount without double-prefixing.
-                    return redirect("../../" if pk else "../")
+                    return redirect("../../")
         except IntegrityError:
             form.add_error("name", "此類 IC 已有同名設定，請使用其他名稱。")
     return render(request, "ICmanage/ic_form.html", {"kind": kind, "title": title, "form": form, "item": item})

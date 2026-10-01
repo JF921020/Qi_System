@@ -11,3 +11,6 @@ class ICSettingAdmin(admin.ModelAdmin):
     list_filter = ("kind", "mode")
     exclude = ("provisional",)
     search_fields = ("name", "model_number")
+
+    def has_add_permission(self, request):
+        return False

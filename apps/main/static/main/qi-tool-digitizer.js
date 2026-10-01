@@ -44,7 +44,7 @@ function closeDigitizer() { document.getElementById('digModal').style.display = 
 
 function updateDigColHeader() {
     const axisType = document.getElementById('digAxisType').value;
-    document.getElementById('digColX').innerText = axisType === 'power' ? 'X: 功率(W)' : 'X: 電流(A)';
+    document.getElementById('digColX').innerText = axisType === 'power' ? 'X: 功率(W)' : `X: 電流(${axisType === 'ma' ? 'mA' : 'A'})`;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -188,7 +188,7 @@ function redrawDigCanvas() {
 function renderDigPtTable() {
     const tbody = document.getElementById('digPtTbody');
     tbody.innerHTML = dig.points.map((p, i) =>
-        `<tr><td>${i + 1}</td><td>${p.x.toFixed(2)}</td><td>${p.y.toFixed(1)}</td><td><span class="dig-del-btn" onclick="deleteDigPoint(${i})">✕</span></td></tr>`
+        `<tr><td>${i + 1}</td><td>${p.x.toFixed(2)}</td><td>${formatEfficiency(p.y)}</td><td><span class="dig-del-btn" onclick="deleteDigPoint(${i})">✕</span></td></tr>`
     ).join('');
 }
 function deleteDigPoint(i) { dig.points.splice(i, 1); redrawDigCanvas(); renderDigPtTable(); }
@@ -207,7 +207,7 @@ function saveDigitizedToDatabase() {
     form.action = dig.target === 'rx' ? button.dataset.rxUrl : button.dataset.chargerUrl;
     const fields = {
         csrfmiddlewaretoken: document.querySelector('[name=csrfmiddlewaretoken]').value,
-        name, model_number: name, mode: 'curve', provisional: 'on',
+        name, model_number: name, mode: 'curve',
         axis: document.getElementById('digAxisType').value,
         points: JSON.stringify(dig.points.map(p => [p.x, p.y])),
         source: '使用者手動數位化',
@@ -229,8 +229,8 @@ function saveDigitizedCurve() {
 
     const axisType = document.getElementById('digAxisType').value;
     const key = 'custom_' + modelName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() + '_' + Date.now().toString(36).slice(-4);
-    const curveData = dig.points.map(p => [p.x, p.y]);
-    const curveObj = { axis: axisType, src: `使用者手動數位化：${modelName}`, data: curveData };
+    const curveData = dig.points.map(p => [axisType === 'ma' ? p.x / 1000 : p.x, p.y]);
+    const curveObj = { axis: axisType === 'ma' ? 'current' : axisType, src: `使用者手動數位化：${modelName}`, data: curveData };
 
     const selectId = dig.target === 'rx' ? 'rxIcSelect' : 'chargerIcSelect';
     const curveMap = dig.target === 'rx' ? RX_EFF_CURVES : CHARGER_EFF_CURVES;

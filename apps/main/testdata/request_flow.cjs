@@ -72,4 +72,17 @@ assert.equal(loadContext.window._advisorSnapshot, null);
 vm.runInContext('state.kVal = 0.68; triggerCalc();', loadContext);
 assert.equal(elements.get('calcStatus').textContent, '');
 assert.equal(loadContext.window._advisorSnapshot.pOut, 4);
+for (const [input, expected] of [[92, '92.0'], [92.34, '92.3'], [92.35, '92.4'], [92.36, '92.4'], [0.05, '0.1'], [99.95, '100.0']]) {
+    assert.equal(loadContext.formatEfficiency(input), expected);
+}
+vm.runInContext(`
+state.rxIcSelect = 'custom'; state.rxIcEff = 92.35;
+state.chargerIcSelect = 'custom'; state.chargerIcEff = 89.24;
+triggerCalc();
+`, loadContext);
+assert.equal(elements.get('rxIcEff').value, '92.4');
+assert.equal(elements.get('chargerIcEff').value, '89.2');
+assert.equal(elements.get('rxIcBadgeLarge').innerText, '92.4%');
+assert.equal(elements.get('chargerIcBadgeLarge').innerText, '89.2%');
+assert.equal(vm.runInContext('state.rxIcEff', loadContext), 92.35, 'display rounding preserves calculation precision');
 console.log('PASS: immediate local calculation, rendering, validation and recovery without fetch');

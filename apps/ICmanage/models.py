@@ -23,7 +23,7 @@ class ICSetting(models.Model):
     name = models.CharField("設定名稱", max_length=120)
     model_number = models.CharField("IC 型號", max_length=120)
     mode = models.CharField("效率來源", max_length=5, choices=[("curve", "資料庫曲線查表"), ("fixed", "自訂固定效率")], default="curve")
-    axis = models.CharField("查表軸向", max_length=7, choices=[("power", "輸出功率 (W)"), ("current", "充電電流 (A)")], default="current")
+    axis = models.CharField("查表軸向", max_length=7, choices=[("power", "輸出功率 (W)"), ("current", "充電電流 (A)"), ("ma", "充電電流 (mA)")], default="current")
     efficiency = models.FloatField("固定效率 (%)", null=True, blank=True)
     points = models.JSONField("曲線資料點", default=list, blank=True)
     provisional = models.BooleanField("暫定數據（尚未驗證）", default=True)

@@ -47,13 +47,11 @@ function renderDiagAdvice() {
     let items = [];
 
     // ── 1. 效率 ──
-    if (s.coilEff < 75) items.push({ cat: 'eff', level: 'danger', title: '線圈效率偏低 (' + s.coilEff.toFixed(1) + '%)', text: '低於75%建議門檻。可嘗試：提高k耦合係數(縮小Rx線圈距離)、提高Ls感值、或降低DCR基準值rxR。' });
-    else if (s.coilEff < 85) items.push({ cat: 'eff', level: 'warning', title: '線圈效率中等 (' + s.coilEff.toFixed(1) + '%)', text: '75~85%區間，尚可接受，若有裕度可再優化k值或DCR以提升效率。' });
+    if (s.coilEff < 75) items.push({ cat: 'eff', level: 'danger', title: '線圈效率偏低 (' + formatEfficiency(s.coilEff) + '%)', text: '低於75%建議門檻。可嘗試：提高k耦合係數(縮小Rx線圈距離)、提高Ls感值、或降低DCR基準值rxR。' });
+    else if (s.coilEff < 85) items.push({ cat: 'eff', level: 'warning', title: '線圈效率中等 (' + formatEfficiency(s.coilEff) + '%)', text: '75~85%區間，尚可接受，若有裕度可再優化k值或DCR以提升效率。' });
 
-    if (s.sysEffPct < 70) items.push({ cat: 'eff', level: 'danger', title: '系統總效率偏低 (' + s.sysEffPct.toFixed(1) + '%)', text: '低於70%警戒線，除了線圈效率外，也請檢查Rx IC / Charger IC效率是否選用了偏低或待補曲線的型號。' });
+    if (s.sysEffPct < 70) items.push({ cat: 'eff', level: 'danger', title: '系統總效率偏低 (' + formatEfficiency(s.sysEffPct) + '%)', text: '低於70%警戒線，除了線圈效率外，也請檢查Rx IC / Charger IC效率是否選用了偏低或待補曲線的型號。' });
 
-    if (RX_EFF_PENDING.includes(s.rxIcSelect)) items.push({ cat: 'eff', level: 'info', title: '目前 Rx IC 使用暫定數據', text: '此效率設定尚未驗證，僅供預估，正式驗收前請確認資料來源與量測條件。' });
-    if (CHARGER_EFF_PENDING.includes(s.chargerIcSelect)) items.push({ cat: 'eff', level: 'info', title: '目前 Charger IC 使用暫定數據', text: '此效率設定尚未驗證，僅供預估，正式驗收前請確認資料來源與量測條件。' });
 
     // ── 2. 損耗 ──
     const lossRatio = s.pInTotal > 0 ? (s.totalLoss / s.pInTotal * 100) : 0;
@@ -152,8 +150,8 @@ function solveTargetEff() {
 
     box.innerHTML = `
     <table class="advisor-result-table">
-        <tr><th>目前線圈效率</th><td>${s.coilEff.toFixed(1)}%</td></tr>
-        <tr><th>目標線圈效率</th><td>${targetPct.toFixed(1)}%</td></tr>
+        <tr><th>目前線圈效率</th><td>${formatEfficiency(s.coilEff)}%</td></tr>
+        <tr><th>目標線圈效率</th><td>${formatEfficiency(targetPct)}%</td></tr>
         <tr><th>目前 k 值</th><td>${s.kVal.toFixed(3)}</td></tr>
         <tr><th>方案A：固定Qrx，所需k值</th><td>${isFinite(kNeeded) ? kNeeded.toFixed(3) : 'N/A'} ${isFinite(kNeeded) && kNeeded > 1 ? '⚠超出物理上限(k≤1)，此目標僅靠調k值無法達成' : ''}</td></tr>
         <tr><th>方案B：固定k值，所需Qrx</th><td>${isFinite(QrxNeeded) ? QrxNeeded.toFixed(1) : 'N/A'} (目前Qrx=${s.Qrx.toFixed(1)})</td></tr>

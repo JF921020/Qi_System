@@ -22,8 +22,6 @@ th { background: #eaf0f7; font-size: 13px; }
 td, th { padding: 18px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
 td { max-width: 350px; overflow-wrap: anywhere; }
 small { display: block; color: #475569; margin-top: 6px; line-height: 1.6; }
-.badge { display: inline-block; padding: 4px 10px; border-radius: 20px; color: #166534; background: #dcfce7; white-space: nowrap; font-size: 13px; }
-.pending { color: #92400e; background: #fef3c7; }
 .danger { color: #b91c1c; margin-left: 12px; }
 .danger-button { background: #b91c1c; }
 .notice { padding: 16px; border: 1px solid #86efac; border-radius: 8px; background: #f0fdf4; color: #166534; }

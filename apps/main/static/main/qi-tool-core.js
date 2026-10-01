@@ -1,5 +1,12 @@
 
 // ─── 物理與幾何常數定義 ───
+const efficiencyFormat = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false,
+});
+function formatEfficiency(value) {
+    return value == null ? '—' : efficiencyFormat.format(value);
+}
+
 const RX_MAG_RING_OD = 52.92, RX_MAG_RING_ID = 47.10;
 const RX_MAG_L = (RX_MAG_RING_OD - RX_MAG_RING_ID) / 2;
 const TX_MAG_RING_OD = 54.0, TX_MAG_RING_ID = 46.0;
@@ -14,8 +21,6 @@ const RX_EFF_CURVES = curveCatalog.rx;
 const CHARGER_EFF_CURVES = curveCatalog.charger;
 const RX_EFF_FIXED = curveCatalog.rxFixed;
 const CHARGER_EFF_FIXED = curveCatalog.chargerFixed;
-const RX_EFF_PENDING = curveCatalog.rxPending || Object.keys(curveCatalog.rxFixed);
-const CHARGER_EFF_PENDING = curveCatalog.chargerPending || Object.keys(curveCatalog.chargerFixed);
 
 let state = {
     batScenarioSelect: 'standard', batCapacity: 400, batVoltage: 3.70, batMaxC: 1.0, sysPower: 2.5,

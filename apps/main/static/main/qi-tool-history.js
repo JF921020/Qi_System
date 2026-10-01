@@ -166,7 +166,7 @@ function renderHistTable(list) {
             <td>${item.coilType || '—'}</td>
             <td>${item.shield || '—'}</td>
             <td>${item.size || '—'}</td>
-            <td>${getHistRxEff(item)?.toFixed(1) ?? '—'}${getHistRxEff(item) === null ? '' : '%'}</td>
+            <td>${formatEfficiency(getHistRxEff(item))}${getHistRxEff(item) === null ? '' : '%'}</td>
             <td>${item.ls}</td>
             <td>${item.q ?? '—'}</td>
             <td>${item.dcr ?? '—'}</td>
@@ -242,28 +242,26 @@ function renderHistCards(list) {
     box.innerHTML = arr.map(item => {
         const rxCurve = RX_EFF_CURVES[item.rxKey];
         const chCurve = CHARGER_EFF_CURVES[item.chKey];
-        const rxStatus = RX_EFF_PENDING.includes(item.rxKey) ? '<span class="hstatus-pill pending">暫定</span>' : `<span class="hstatus-pill">${rxCurve || RX_EFF_FIXED[item.rxKey] !== undefined ? '非暫定' : '無資料'}</span>`;
-        const chStatus = CHARGER_EFF_PENDING.includes(item.chKey) ? '<span class="hstatus-pill pending">暫定</span>' : `<span class="hstatus-pill">${chCurve || CHARGER_EFF_FIXED[item.chKey] !== undefined ? '非暫定' : '無資料'}</span>`;
 
         let rxEffVal = '—', rxEffNote = '設定不存在或已刪除', rxEffColor = '#b45309';
         if (rxCurve) {
             const qX = rxCurve.axis === 'power' ? item.powerW : item.currentA;
-            rxEffVal = interpEff(rxCurve.data, qX).toFixed(1) + ' %';
+            rxEffVal = formatEfficiency(interpEff(rxCurve.data, qX)) + ' %';
             rxEffNote = `依資料庫曲線查表 (${rxCurve.axis === 'power' ? qX.toFixed(2) + 'W' : qX.toFixed(2) + 'A'})`;
             rxEffColor = '#15803d';
         } else if (RX_EFF_FIXED[item.rxKey] !== undefined) {
-            rxEffVal = RX_EFF_FIXED[item.rxKey].toFixed(1) + ' %';
+            rxEffVal = formatEfficiency(RX_EFF_FIXED[item.rxKey]) + ' %';
             rxEffNote = '資料庫自訂固定效率';
         }
 
         let chEffVal = '—', chEffNote = '設定不存在或已刪除', chEffColor = '#b45309';
         if (chCurve) {
             const qX = chCurve.axis === 'power' ? item.powerW : item.currentA;
-            chEffVal = interpEff(chCurve.data, qX).toFixed(1) + ' %';
+            chEffVal = formatEfficiency(interpEff(chCurve.data, qX)) + ' %';
             chEffNote = `依資料庫曲線查表 (${qX.toFixed(2)}${chCurve.axis === 'power' ? 'W' : 'A'})`;
             chEffColor = '#15803d';
         } else if (CHARGER_EFF_FIXED[item.chKey] !== undefined) {
-            chEffVal = CHARGER_EFF_FIXED[item.chKey].toFixed(1) + ' %';
+            chEffVal = formatEfficiency(CHARGER_EFF_FIXED[item.chKey]) + ' %';
             chEffNote = '資料庫自訂固定效率';
         }
 
@@ -282,13 +280,13 @@ function renderHistCards(list) {
                 </div>
                 <div class="hquad hquad-2">
                     <div class="hquad-title">🎯 RX IC 效率查表</div>
-                    <div class="hfield"><div class="hfield-label">Efficiency Curve 狀態</div><div class="hfield-value">${item.rxName} ${rxStatus}</div></div>
+                    <div class="hfield"><div class="hfield-label">IC 型號</div><div class="hfield-value">${item.rxName}</div></div>
                     <div class="hcurve-box"><div class="hcv-label">查表依據</div><div class="hcv-val">${rxCurve && rxCurve.axis === 'current' ? item.currentA.toFixed(2) + ' A' : item.powerW.toFixed(2) + ' W'}</div></div>
                     <div class="hcurve-box" style="margin-top:6px;"><div class="hcv-label">${rxEffNote}</div><div class="hcv-val" style="color:${rxEffColor};">${rxEffVal}</div></div>
                 </div>
                 <div class="hquad hquad-3">
                     <div class="hquad-title">⚡ CHARGER IC 效率查表</div>
-                    <div class="hfield"><div class="hfield-label">Efficiency Curve 狀態</div><div class="hfield-value">${item.chName} ${chStatus}</div></div>
+                    <div class="hfield"><div class="hfield-label">IC 型號</div><div class="hfield-value">${item.chName}</div></div>
                     <div class="hcurve-box"><div class="hcv-label">查表依據</div><div class="hcv-val">${chCurve?.axis === 'power' ? item.powerW.toFixed(2) + ' W' : item.currentA.toFixed(2) + ' A'}</div></div>
                     <div class="hcurve-box" style="margin-top:6px;"><div class="hcv-label">${chEffNote}</div><div class="hcv-val" style="color:${chEffColor};">${chEffVal}</div></div>
                 </div>

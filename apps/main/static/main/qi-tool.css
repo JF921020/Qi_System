@@ -427,9 +427,6 @@
         .hfield-label { font-size: 0.68em; color: #64748b; margin-bottom: 1px; }
         .hfield-value { font-size: 0.85em; font-weight: 700; color: #1e293b; }
         .hfield-value.empty { color: #cbd5e1; font-weight: 400; }
-        .hstatus-pill { display: inline-flex; align-items: center; gap: 3px; font-size: 0.66em; font-weight: 700; padding: 1px 6px; border-radius: 9px; margin-left: 4px; }
-        .hstatus-pill.ok { background: #dcfce7; color: #15803d; }
-        .hstatus-pill.pending { background: #fef3c7; color: #b45309; }
         .hcurve-box { background: #f8fafc; border: 1px dashed var(--border-color); border-radius: 5px; padding: 6px 8px; margin-top: 3px; }
         .hcurve-box .hcv-label { font-size: 0.66em; color: #64748b; }
         .hcurve-box .hcv-val { font-size: 1.0em; font-weight: 800; color: #1e293b; }

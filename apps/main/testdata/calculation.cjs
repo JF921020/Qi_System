@@ -44,5 +44,22 @@ if (process.argv.includes('--calculate')) {
         custom[kind+'Fixed'].custom_test=0;
         assert.equal(ctx.calculate(input,custom)[field+'Eff'],0);
     }
-    console.log(`PASS: ${cases.length} original JS cases, energy balance, validation, zero efficiency and both curve axes`);
+    // Digitized mA points must use the same canonical A catalog as database curves.
+    const elements = {
+        digModelName: {value: 'mA test'}, digAxisType: {value: 'ma'},
+        digSaveMsg: {}, digColX: {}, rxIcSelect: {appendChild() {}}, chargerIcSelect: {appendChild() {}},
+    };
+    ctx.document = {getElementById: id => elements[id], createElement: () => ({}), addEventListener() {}};
+    ctx.setTimeout = () => {};
+    ctx.triggerCalc = () => {};
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '../static/main/qi-tool-digitizer.js'), 'utf8'), ctx);
+    for (const kind of ['rx', 'charger']) {
+        vm.runInContext(`dig.target = '${kind}'; dig.points = [{x:100,y:80},{x:500,y:92},{x:1000,y:95}]; saveDigitizedCurve(); updateDigColHeader();`, ctx);
+        const key = elements[kind === 'rx' ? 'rxIcSelect' : 'chargerIcSelect'].value;
+        const curve = vm.runInContext(`curveCatalog.${kind}['${key}']`, ctx);
+        assert.equal(curve.axis, 'current');
+        assert.equal(JSON.stringify(curve.data), '[[0.1,80],[0.5,92],[1,95]]');
+        assert.equal(elements.digColX.innerText, 'X: 電流(mA)');
+    }
+    console.log(`PASS: ${cases.length} original JS cases, energy balance, validation, zero efficiency, curve axes and mA digitizer`);
 }

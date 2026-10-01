@@ -1,0 +1,25 @@
+{% extends 'ICmanage/ic_base.html' %}
+{% block content %}
+<p class="eyebrow">{{ title }} / IMPORT</p>
+<h1>匯入 {{ title }} 效率資料</h1>
+<p>上傳 Excel 或 CSV，設定名稱自動使用「型號_電壓」，例如 MP2733_5V、MP2733_12V。支援「電池效能表」的 IC 明細工作表。</p>
+<form class="editor" method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% for field in form %}<div class="field">{{ field.label_tag }}{{ field }}{{ field.errors }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}</div>{% endfor %}
+    <p class="hint">最多 5 MB、10000 列。空白效率略過、0% 保留；公式請先轉為數值。若有錯誤，本次不會新增設定，修正後請重新選擇檔案。</p>
+    <div class="actions"><button type="submit">匯入並儲存</button><a href="{% url 'ICmanage:ic-list' kind %}">取消</a></div>
+</form>
+<details open><summary>支援格式與單位</summary>
+<p>CSV 使用 UTF-8 編碼，第一列為欄位名稱。例如：</p>
+<p>Excel 效率採用儲存格顯示精度：例如 0.0000 格式下的 0.94309，會先取 0.9431，再匯入為 94.31%。支援一般數值與百分比格式；General 格式保留原數值，複雜自訂格式請先改成數值格式。CSV 使用檔案內的數字。</p>
+<pre>voltage_v,current_ma,efficiency_percent
+5,100,82
+5,500,94.5
+5,1000,95.6</pre>
+<p>電流欄可用 current_ma、current_a、Iout (mA)、Iout (A)；功率欄可用 power_w、Pout (W)。效率欄可用 efficiency_percent（0–100）或 efficiency_fraction（0–1），亦支援 Excel 的「效率（小數）」、「效率 (%)」、「效率(%)」。</p>
+<p>Excel 表頭需位於前 10 列。電壓欄可用 voltage_v、工作電壓 (V)、VIN (V)。5V 與 12V 請分別選擇電壓匯入；名稱會自動加上電壓後綴，同名設定不會覆蓋。摘要表及沒有逐點效率的資料不適用。</p>
+<p>mA 資料會以 mA 軸保存，計算時自動換算。資料會依電流／功率排序，重複 X 值會拒絕匯入。超過 1000 點時只合併共線點；合併後仍超過上限會提示錯誤。表頭說明會加入來源。</p>
+<p>請確認量測邊界：Tx→Rx 系統效率不能直接視為純 Rx IC 效率。理論估算與實測請分開命名；電壓只保存為條件說明，計算頁需自行選擇適合的設定。</p>
+</details>
+{% endblock %}

@@ -5,7 +5,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods
 
-from .forms import ICSettingForm
+from .forms import ICImportForm, ICSettingForm
 from .models import ICSetting
 
 
@@ -23,6 +23,29 @@ def ic_list(request, kind):
     if query:
         items = items.filter(Q(name__icontains=query) | Q(model_number__icontains=query))
     return render(request, "ICmanage/ic_list.html", {"kind": kind, "title": title, "items": items, "query": query})
+
+
+@require_http_methods(["GET", "POST"])
+def ic_import(request, kind):
+    title = kind_title(kind)
+    form = ICImportForm(request.POST if request.method == "POST" else None,
+                        request.FILES if request.method == "POST" else None,
+                        instance=ICSetting(kind=kind))
+    if request.method == "POST" and form.is_valid():
+        try:
+            with transaction.atomic():
+                if ICSetting.objects.filter(kind=kind, name=form.cleaned_data["name"]).exists():
+                    form.add_error(None, "此型號與電壓已有設定，請到列表編輯既有資料。")
+                else:
+                    saved = form.save()
+                    result = form.result
+                    messages.success(request, f'已匯入 {saved.name}：{result["count"]} 筆有效資料，'
+                                     f'儲存 {len(saved.points)} 點，略過 {result["skipped"]} 筆空白效率。'
+                                     '計算頁重新載入後即可選用。')
+                    return redirect("../")
+        except IntegrityError:
+            form.add_error(None, "此型號與電壓已有設定，請到列表編輯既有資料。")
+    return render(request, "ICmanage/ic_import.html", {"kind": kind, "title": title, "form": form})
 
 
 @require_http_methods(["GET", "POST"])

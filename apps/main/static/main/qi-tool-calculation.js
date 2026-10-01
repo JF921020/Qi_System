@@ -12,10 +12,9 @@ function calculateEfficiency(s, kind, current, catalog) {
     if (typeof selected !== 'string') throw new Error(`${field}Select 必須指定型號`);
     if (selected === 'custom') return [calculationNumber(s[field + 'Eff'], field + 'Eff', 0, 100), '自訂效率'];
     const fixed = catalog[kind + 'Fixed'];
-    const provisional = (catalog[kind + 'Pending'] || Object.keys(fixed)).includes(selected);
     if (Object.hasOwn(fixed, selected)) {
         return [calculationNumber(fixed[selected], field + 'Eff', 0, 100),
-            provisional ? '暫定效率，僅供佈局預估，不可作驗收依據。' : '資料庫自訂固定效率'];
+            '資料庫自訂固定效率'];
     }
     const curve = Object.hasOwn(catalog[kind], selected) ? catalog[kind][selected] : null;
     if (!curve) throw new Error(`未知的 ${kind} 型號`);
@@ -34,7 +33,6 @@ function calculateEfficiency(s, kind, current, catalog) {
     const powerAxis = curve.axis === 'power';
     const x = powerAxis ? s.sysPower : current;
     let tip = `依 ${x.toFixed(2)}${powerAxis ? 'W' : 'A'} 查表`;
-    if (provisional) tip += '（暫定數據，尚未驗證）';
     if (x < curve.data[0][0] || x > curve.data[curve.data.length - 1][0]) tip += '（超出取樣範圍，使用端點效率）';
     return [interpEff(curve.data, x), tip];
 }
@@ -105,8 +103,8 @@ function renderCalculation(result, input) {
         qVal: result.qVal, rxACR: acr});
     document.getElementById('qVal').value = result.qVal;
     document.getElementById('rxACR').value = acr.toFixed(2);
-    document.getElementById('rxIcEff').value = result.rxIcEff.toFixed(1);
-    document.getElementById('chargerIcEff').value = result.chargerIcEff.toFixed(1);
+    document.getElementById('rxIcEff').value = formatEfficiency(result.rxIcEff);
+    document.getElementById('chargerIcEff').value = formatEfficiency(result.chargerIcEff);
     document.getElementById('rxTip').textContent = result.rxTip;
     document.getElementById('chargerTip').textContent = result.chargerTip;
     const watts = value => value === null ? '無法計算' : value.toFixed(2) + ' W';
@@ -114,22 +112,22 @@ function renderCalculation(result, input) {
     // 更新效能分頁
     const effB = document.getElementById('effBadgeLarge');
     if(effB) {
-        effB.innerText = coilEff.toFixed(1) + '%';
+        effB.innerText = formatEfficiency(coilEff) + '%';
         // 線圈效率固定使用橘黃色作為識別色（與其他效率指標區分），不再依數值跳燈號
     }
     const rxB = document.getElementById('rxIcBadgeLarge');
-    if(rxB) rxB.innerText = state.rxIcEff.toFixed(0) + '%';
+    if(rxB) rxB.innerText = formatEfficiency(state.rxIcEff) + '%';
     const chB = document.getElementById('chargerIcBadgeLarge');
-    if(chB) chB.innerText = state.chargerIcEff.toFixed(0) + '%';
+    if(chB) chB.innerText = formatEfficiency(state.chargerIcEff) + '%';
     const sysB = document.getElementById('sysBadgeLarge');
     if(sysB) {
-        sysB.innerText = sysEffPct.toFixed(1) + '%';
+        sysB.innerText = formatEfficiency(sysEffPct) + '%';
         sysB.style.background = sysEffPct >= 80 ? "var(--eff-green)" : (sysEffPct >= 70 ? "var(--eff-orange)" : "var(--eff-red)");
     }
     // 收合狀態的橫幅摘要值同步更新
     const effBannerVal = document.getElementById('effBannerSummaryVal');
     if (effBannerVal) {
-        effBannerVal.innerText = sysEffPct.toFixed(1) + '%';
+        effBannerVal.innerText = formatEfficiency(sysEffPct) + '%';
         effBannerVal.style.color = sysEffPct >= 80 ? "var(--eff-green)" : (sysEffPct >= 70 ? "var(--eff-orange)" : "var(--eff-red)");
     }
 
@@ -147,11 +145,11 @@ function renderCalculation(result, input) {
     // 更新空間架構分頁 HUD
     const hudC = document.getElementById('hudCoilEff');
     if(hudC) {
-        hudC.innerText = coilEff.toFixed(1) + '%';
+        hudC.innerText = formatEfficiency(coilEff) + '%';
         hudC.style.background = coilEff >= 85 ? "var(--eff-green)" : (coilEff >= 75 ? "var(--eff-orange)" : "var(--eff-red)");
     }
     const hudS = document.getElementById('hudSysEff');
-    if(hudS) hudS.innerText = sysEffPct.toFixed(1) + '%';
+    if(hudS) hudS.innerText = formatEfficiency(sysEffPct) + '%';
     const hudL = document.getElementById('hudLoss');
     if(hudL) hudL.innerText = watts(totalLoss);
     const hudIP = document.getElementById('hudInPower');

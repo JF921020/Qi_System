@@ -7,3 +7,4 @@ drf-spectacular
 djangorestframework-simplejwt
 gunicorn
 whitenoise
+openpyxl>=3.1.5,<4

@@ -90,13 +90,15 @@
                         <div class="grid-2">
                             <div class="form-group">
                                 <label for="chargeCurrentA">4. 充電電流 <span class="sub-note">(A)</span>:</label>
-                                <input type="number" min="0" id="chargeCurrentA" class="form-control" value="0.40" step="0.01">
+                                <input type="number" min="0" id="chargeCurrentA" class="form-control" value="0.40" step="any" aria-describedby="chargeCurrentLimits">
                             </div>
                             <div class="form-group">
                                 <label for="chargeCurrentmA">充電電流 <span class="sub-note">(mA)</span>:</label>
-                                <input type="number" min="0" id="chargeCurrentmA" class="form-control" value="400" step="10">
+                                <input type="number" min="0" id="chargeCurrentmA" class="form-control" value="400" step="any" aria-describedby="chargeCurrentLimits">
                             </div>
                         </div>
+
+                        <div id="chargeCurrentLimits" class="ic-tip" role="status"></div>
 
                         <!-- 5. 充電倍率 (C-rate) -->
                         <div class="form-group">

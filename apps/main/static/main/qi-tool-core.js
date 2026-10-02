@@ -156,9 +156,9 @@ function syncUIInputs() {
     const timeHr = chargeCurrentmA > 0 ? (state.batCapacity / chargeCurrentmA * 1.2) : 1.5;
     
     const elCurrmA = document.getElementById('chargeCurrentmA');
-    if(elCurrmA) elCurrmA.value = chargeCurrentmA.toFixed(0);
+    if(elCurrmA) elCurrmA.value = chargeCurrentmA;
     const elCurrA = document.getElementById('chargeCurrentA');
-    if(elCurrA) elCurrA.value = chargeCurrentA.toFixed(2);
+    if(elCurrA) elCurrA.value = chargeCurrentA;
     const elWh = document.getElementById('batEnergyWh');
     if(elWh) elWh.value = batEnergyWh.toFixed(3) + ' Wh';
     const elTime = document.getElementById('targetChargeTimeHr');

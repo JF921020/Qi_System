@@ -13,18 +13,18 @@ function initEventListeners() {
             if (id === 'chargeCurrentmA') {
                 const curA = val / 1000;
                 const elA = document.getElementById('chargeCurrentA');
-                if (elA) elA.value = curA.toFixed(2);
+                if (elA) elA.value = curA;
                 if (state.batCapacity > 0) {
-                    state.batMaxC = parseFloat((val / state.batCapacity).toFixed(2));
+                    state.batMaxC = val / state.batCapacity;
                     const elC = document.getElementById('batMaxC');
                     if (elC) elC.value = state.batMaxC;
                 }
             } else if (id === 'chargeCurrentA') {
                 const curmA = val * 1000;
                 const elmA = document.getElementById('chargeCurrentmA');
-                if (elmA) elmA.value = curmA.toFixed(0);
+                if (elmA) elmA.value = curmA;
                 if (state.batCapacity > 0) {
-                    state.batMaxC = parseFloat((curmA / state.batCapacity).toFixed(2));
+                    state.batMaxC = curmA / state.batCapacity;
                     const elC = document.getElementById('batMaxC');
                     if (elC) elC.value = state.batMaxC;
                 }
@@ -32,16 +32,16 @@ function initEventListeners() {
                 state.batMaxC = val;
                 const curmA = state.batCapacity * val;
                 const elmA = document.getElementById('chargeCurrentmA');
-                if (elmA) elmA.value = curmA.toFixed(0);
+                if (elmA) elmA.value = curmA;
                 const elA = document.getElementById('chargeCurrentA');
-                if (elA) elA.value = (curmA / 1000).toFixed(2);
+                if (elA) elA.value = curmA / 1000;
             } else if (id === 'batCapacity') {
                 state.batCapacity = val;
                 const curmA = val * state.batMaxC;
                 const elmA = document.getElementById('chargeCurrentmA');
-                if (elmA) elmA.value = curmA.toFixed(0);
+                if (elmA) elmA.value = curmA;
                 const elA = document.getElementById('chargeCurrentA');
-                if (elA) elA.value = (curmA / 1000).toFixed(2);
+                if (elA) elA.value = curmA / 1000;
                 const elWh = document.getElementById('batEnergyWh');
                 if (elWh) elWh.value = ((state.batVoltage * val) / 1000).toFixed(3) + ' Wh';
             } else if (id === 'batVoltage') {
@@ -55,6 +55,29 @@ function initEventListeners() {
         });
     });
 
+    // Commit on change so intermediate typing (e.g. "0." before "0.5") remains possible.
+    ['chargeCurrentA', 'chargeCurrentmA', 'batCapacity', 'batMaxC'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', () => {
+            const {min, max} = currentLimits(state);
+            const current = state.batCapacity * state.batMaxC / 1000;
+            if (min > max || !Number.isFinite(current) || state.batCapacity <= 0) return;
+            const limited = Math.max(min, Math.min(max, current));
+            if (limited === current) return;
+            state.batMaxC = limited * 1000 / state.batCapacity;
+            for (const [field, value] of [
+                ['chargeCurrentA', limited], ['chargeCurrentmA', limited * 1000],
+                ['batMaxC', state.batMaxC],
+            ]) {
+                const input = document.getElementById(field);
+                if (input) input.value = value;
+            }
+            triggerCalc();
+            const hint = document.getElementById('chargeCurrentLimits');
+            if (hint) hint.textContent += ` 已將超限電流修正為 ${limited} A。`;
+        });
+    });
+
     const NC_LAYER_THICKNESS = { '1L': 0.05, '2L': 0.08, '3L': 0.10, '5L': 0.15 };
     const selects = ['batScenarioSelect', 'caseMaterial', 'rxIcSelect', 'chargerIcSelect', 'ncWrap', 'ncTPreset', 'magCoating', 'magGrade', 'susT', 'coilType'];
     selects.forEach(id => {
@@ -63,6 +86,11 @@ function initEventListeners() {
             state[id] = ['magCoating', 'magGrade', 'susT'].includes(id) ? Number(e.target.value) : e.target.value;
             if (id === 'rxIcSelect' || id === 'chargerIcSelect') {
                 document.getElementById(id.replace('Select', 'Eff')).disabled = e.target.value !== 'custom';
+                const {min, max} = currentLimits(state);
+                if (Number.isFinite(max) && min <= max && state.batCapacity > 0) {
+                    state.batMaxC = min * 1000 / state.batCapacity;
+                    syncUIInputs();
+                }
             }
             if(id === 'caseMaterial' && e.target.value === 'aluminum') {
                 state.ncWrap = 'yes';

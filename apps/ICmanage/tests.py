@@ -1,4 +1,5 @@
 from io import BytesIO
+from subprocess import CalledProcessError
 from urllib.parse import urljoin
 
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -160,11 +161,17 @@ class ICManagementTests(TestCase):
             catalog = self.client.get(reverse("main:index")).context["curves"]
             self.assertEqual(catalog[kind][item.code]["axis"], "current")
             field = "rxIc" if kind == "rx" else "chargerIc"
-            for current_ma, expected in [(100, 80), (500, 92), (750, 93.5), (1000, 95), (1500, 95)]:
+            for current_ma, expected in [(100, 80), (500, 92), (750, 93.5), (1000, 95)]:
                 state = {**main_tests.BASE_STATE, "batCapacity": current_ma, "batMaxC": 1,
                          field + "Select": item.code}
                 result = main_tests.calculate_js(state, catalog)
                 self.assertAlmostEqual(result[field + "Eff"], expected)
+            for current_ma in (99, 1001, 1500):
+                state = {**main_tests.BASE_STATE, "batCapacity": current_ma, "batMaxC": 1,
+                         field + "Select": item.code}
+                with self.assertRaises(CalledProcessError) as error:
+                    main_tests.calculate_js(state, catalog)
+                self.assertIn("充電電流超出允許範圍", error.exception.stderr)
             edit = self.client.get(reverse("ICmanage:ic-edit", args=[kind, item.pk]))
             self.assertEqual(edit.context["form"].initial["axis"], "ma")
             item.refresh_from_db()

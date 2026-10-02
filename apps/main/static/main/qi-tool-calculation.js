@@ -37,6 +37,37 @@ function calculateEfficiency(s, kind, current, catalog) {
     return [interpEff(curve.data, x), tip];
 }
 
+function currentLimits(s, catalog = curveCatalog) {
+    let min = 0, max = Infinity;
+    for (const [kind, field] of [['rx', 'rxIc'], ['charger', 'chargerIc']]) {
+        const selected = s[field + 'Select'];
+        if (selected === 'custom' || Object.hasOwn(catalog[kind + 'Fixed'], selected)) continue;
+        const curve = Object.hasOwn(catalog[kind], selected) ? catalog[kind][selected] : null;
+        if (curve?.axis !== 'current' || !curve.data?.length) continue;
+        min = Math.max(min, curve.data[0][0]);
+        max = Math.min(max, curve.data[curve.data.length - 1][0]);
+    }
+    return {min, max};
+}
+
+function currentLimitMessage({min, max}) {
+    if (min > max) return '所選 IC 的電流範圍沒有交集，請更換 IC。';
+    if (max === Infinity) return '所選 IC 未提供電流曲線範圍。';
+    return `所選 IC 電流曲線共同範圍：${min}–${max} A（${min * 1000}–${max * 1000} mA）。`;
+}
+
+function updateCurrentLimits() {
+    const limits = currentLimits(state);
+    for (const [id, scale] of [['chargeCurrentA', 1], ['chargeCurrentmA', 1000]]) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        el.min = limits.min * scale;
+        el.max = Number.isFinite(limits.max) ? limits.max * scale : '';
+    }
+    const hint = document.getElementById('chargeCurrentLimits');
+    if (hint) hint.textContent = currentLimitMessage(limits);
+}
+
 function calculate(s, catalog = curveCatalog) {
     if (!s || typeof s !== 'object' || Array.isArray(s)) throw new Error('請提供 state 參數物件');
     for (const field of ['batCapacity', 'batVoltage', 'batMaxC', 'sysPower', 'rxL', 'rxR', 'freq', 'qTx', 'kVal']) {
@@ -48,6 +79,12 @@ function calculate(s, catalog = curveCatalog) {
     const chargeCurrentA = s.batCapacity / 1000 * s.batMaxC;
     const [rxIcEff, rxTip] = calculateEfficiency(s, 'rx', chargeCurrentA, catalog);
     const [chargerIcEff, chargerTip] = calculateEfficiency(s, 'charger', chargeCurrentA, catalog);
+    const limits = currentLimits(s, catalog);
+    // Allow only floating-point roundoff at inclusive curve endpoints.
+    const tolerance = Number.EPSILON * Math.max(1, chargeCurrentA, limits.min, Number.isFinite(limits.max) ? limits.max : 0) * 4;
+    if (limits.min > limits.max || chargeCurrentA < limits.min - tolerance || chargeCurrentA > limits.max + tolerance) {
+        throw new Error('充電電流超出允許範圍。' + currentLimitMessage(limits));
+    }
     const isMetal = ['aluminum', 'zinc'].includes(s.caseMaterial);
     const rxACR = s.rxR * (isMetal ? 4.8 : s.ncWrap === 'yes' ? 1.8 : 2.22);
     const Qrx = 2 * Math.PI * s.freq * 1000 * s.rxL * 1e-6 / (rxACR * 1e-3);
@@ -82,6 +119,7 @@ function clearCalculationResults() {
 
 function triggerCalc() {
     clearCalculationResults();
+    updateCurrentLimits();
     const input = {...state};
     try {
         const result = calculate(input);

@@ -85,4 +85,98 @@ assert.equal(elements.get('chargerIcEff').value, '89.2');
 assert.equal(elements.get('rxIcBadgeLarge').innerText, '92.4%');
 assert.equal(elements.get('chargerIcBadgeLarge').innerText, '89.2%');
 assert.equal(vm.runInContext('state.rxIcEff', loadContext), 92.35, 'display rounding preserves calculation precision');
-console.log('PASS: immediate local calculation, rendering, validation and recovery without fetch');
+// Current limits use the intersection of selected current curves, in amperes.
+vm.runInContext(`
+curveCatalog.rx.limit_test = {axis: 'current', data: [[0.123, 80], [0.5, 90], [1.2, 95]]};
+curveCatalog.charger.limit_test = {axis: 'current', data: [[0.1, 80], [0.5, 90], [0.987, 95]]};
+state.rxIcSelect = 'limit_test'; state.chargerIcSelect = 'limit_test';
+state.batCapacity = 510;
+`, loadContext);
+for (const current of [0.123, 0.987, 0.5]) {
+    vm.runInContext(`state.batMaxC = ${current} * 1000 / state.batCapacity; triggerCalc();`, loadContext);
+    assert.equal(elements.get('calcStatus').textContent, '');
+    assert.ok(Math.abs(loadContext.window._advisorSnapshot.chargeCurrentA - current) < 1e-12);
+}
+assert.equal(elements.get('chargeCurrentA').min, 0.123);
+assert.equal(elements.get('chargeCurrentA').max, 0.987);
+assert.equal(elements.get('chargeCurrentmA').min, 123);
+assert.equal(elements.get('chargeCurrentmA').max, 987);
+for (const current of [0.1229, 0.9871]) {
+    vm.runInContext(`state.batMaxC = ${current} * 1000 / state.batCapacity; triggerCalc();`, loadContext);
+    assert.match(elements.get('calcStatus').textContent, /充電電流超出允許範圍/);
+    assert.equal(loadContext.window._advisorSnapshot, null);
+}
+
+// Exercise actual A/mA, capacity, C-rate and IC selection event handlers.
+for (const el of elements.values()) {
+    el.listeners = {};
+    el.addEventListener = (event, handler) => { el.listeners[event] = handler; };
+}
+const previousGet = loadContext.document.getElementById;
+loadContext.document.getElementById = id => elements.has(id) ? previousGet(id) : null;
+elements.set('batCapacity', {listeners: {}, addEventListener(event, handler) { this.listeners[event] = handler; }});
+elements.set('batMaxC', {listeners: {}, addEventListener(event, handler) { this.listeners[event] = handler; }});
+for (const id of ['rxIcSelect', 'chargerIcSelect']) {
+    elements.set(id, {value: 'limit_test', listeners: {}, addEventListener(event, handler) { this.listeners[event] = handler; }});
+}
+loadContext.window.addEventListener = () => {};
+loadContext.initEventListeners();
+const dispatch = (id, event, value) => elements.get(id).listeners[event]({target: {value}});
+dispatch('chargeCurrentmA', 'input', '123');
+assert.equal(elements.get('chargeCurrentA').value, 0.123);
+assert.equal(elements.get('calcStatus').textContent, '');
+dispatch('chargeCurrentA', 'input', '0.987');
+assert.equal(elements.get('chargeCurrentmA').value, 987);
+assert.equal(elements.get('calcStatus').textContent, '');
+dispatch('batCapacity', 'input', '1000');
+assert.match(elements.get('calcStatus').textContent, /充電電流超出允許範圍/);
+dispatch('batMaxC', 'input', '0.5');
+assert.equal(elements.get('calcStatus').textContent, '');
+for (const [id, value, expected] of [
+    ['chargeCurrentA', '2', 0.987], ['chargeCurrentmA', '1', 0.123],
+    ['batMaxC', '2', 0.987], ['batCapacity', '2000', 0.987],
+    ['chargeCurrentA', '0', 0.123],
+]) {
+    dispatch(id, 'input', value);
+    assert.equal(loadContext.window._advisorSnapshot, null, 'out-of-range draft cannot calculate');
+    dispatch(id, 'change', value);
+    assert.equal(elements.get('chargeCurrentA').value, expected);
+    assert.equal(elements.get('chargeCurrentmA').value, expected * 1000);
+    assert.ok(Math.abs(loadContext.window._advisorSnapshot.chargeCurrentA - expected) < 1e-12);
+    assert.equal(elements.get('calcStatus').textContent, '');
+    assert.match(elements.get('chargeCurrentLimits').textContent, /已將超限電流修正/);
+}
+vm.runInContext("curveCatalog.rx.disjoint = {axis: 'current', data: [[2,80],[3,90],[4,95]]};", loadContext);
+dispatch('rxIcSelect', 'change', 'disjoint');
+assert.match(elements.get('chargeCurrentLimits').textContent, /沒有交集/);
+assert.equal(loadContext.window._advisorSnapshot, null);
+dispatch('chargeCurrentA', 'input', '0.5');
+dispatch('chargeCurrentA', 'change', '0.5');
+assert.equal(loadContext.window._advisorSnapshot, null, 'no clamping to an invalid intersection');
+dispatch('rxIcSelect', 'change', 'custom');
+assert.equal(elements.get('chargeCurrentA').min, 0.1);
+assert.equal(elements.get('chargeCurrentA').value, 0.1);
+assert.equal(elements.get('chargeCurrentmA').value, 100);
+assert.equal(loadContext.window._advisorSnapshot.chargeCurrentA, 0.1);
+assert.equal(elements.get('calcStatus').textContent, '');
+dispatch('rxIcSelect', 'change', 'limit_test');
+assert.equal(elements.get('chargeCurrentA').value, 0.123);
+dispatch('chargeCurrentA', 'input', '0.8');
+vm.runInContext("curveCatalog.charger.higher_min = {axis: 'current', data: [[0.3,80],[0.5,90],[1,95]]};", loadContext);
+dispatch('chargerIcSelect', 'change', 'higher_min');
+assert.equal(elements.get('chargeCurrentA').value, 0.3);
+assert.equal(elements.get('chargeCurrentmA').value, 300);
+assert.equal(elements.get('batMaxC').value, 0.15);
+assert.equal(loadContext.window._advisorSnapshot.chargeCurrentA, 0.3);
+dispatch('rxIcSelect', 'change', 'custom');
+vm.runInContext("curveCatalog.chargerFixed.fixed_test = 90;", loadContext);
+dispatch('chargerIcSelect', 'change', 'fixed_test');
+assert.equal(elements.get('chargeCurrentA').value, 0.3, 'no known current range preserves current');
+assert.equal(elements.get('chargeCurrentA').max, '');
+assert.equal(elements.get('chargeCurrentmA').max, '');
+assert.match(elements.get('chargeCurrentLimits').textContent, /未提供/);
+vm.runInContext("curveCatalog.rx.power_test = {axis: 'power', data: [[0,80],[1,90],[2,95]]};", loadContext);
+dispatch('rxIcSelect', 'change', 'power_test');
+assert.equal(elements.get('chargeCurrentA').max, '');
+assert.equal(elements.get('calcStatus').textContent, '');
+console.log('PASS: local calculation, current limits, inclusive endpoints, precision, input events, IC switching and recovery');

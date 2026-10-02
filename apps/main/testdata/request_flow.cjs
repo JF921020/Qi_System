@@ -116,6 +116,8 @@ const previousGet = loadContext.document.getElementById;
 loadContext.document.getElementById = id => elements.has(id) ? previousGet(id) : null;
 elements.set('batCapacity', {listeners: {}, addEventListener(event, handler) { this.listeners[event] = handler; }});
 elements.set('batMaxC', {listeners: {}, addEventListener(event, handler) { this.listeners[event] = handler; }});
+elements.set('batVoltage', {listeners: {}, addEventListener(event, handler) { this.listeners[event] = handler; }});
+elements.set('sysPower', {listeners: {}, addEventListener(event, handler) { this.listeners[event] = handler; }});
 for (const id of ['rxIcSelect', 'chargerIcSelect']) {
     elements.set(id, {value: 'limit_test', listeners: {}, addEventListener(event, handler) { this.listeners[event] = handler; }});
 }
@@ -179,4 +181,14 @@ vm.runInContext("curveCatalog.rx.power_test = {axis: 'power', data: [[0,80],[1,9
 dispatch('rxIcSelect', 'change', 'power_test');
 assert.equal(elements.get('chargeCurrentA').max, '');
 assert.equal(elements.get('calcStatus').textContent, '');
+// Voltage and current edits update power and power-based efficiency immediately.
+dispatch('chargeCurrentA', 'input', '0.3');
+dispatch('batVoltage', 'input', '3');
+const lowVoltageEfficiency = loadContext.window._advisorSnapshot.rxIcEff;
+assert.ok(Math.abs(loadContext.window._advisorSnapshot.pOut - 0.9) < 1e-12);
+dispatch('batVoltage', 'input', '4');
+assert.ok(Math.abs(elements.get('sysPower').value - 1.2) < 1e-12);
+assert.ok(loadContext.window._advisorSnapshot.rxIcEff > lowVoltageEfficiency);
+dispatch('chargeCurrentmA', 'input', '400');
+assert.ok(Math.abs(loadContext.window._advisorSnapshot.pOut - 1.6) < 1e-12);
 console.log('PASS: local calculation, current limits, inclusive endpoints, precision, input events, IC switching and recovery');

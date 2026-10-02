@@ -3,7 +3,8 @@
 {% block content %}
 <div class="heading"><div><p class="eyebrow">COMPONENT LIBRARY</p><h1>{{ title }} 管理</h1>
 <p>保存不同型號與量測條件，供效能計算直接查表。</p></div>
-<a class="button" href="{% url 'ICmanage:ic-import' kind %}">匯入效率資料</a></div>
+{% if user.is_staff %}<a class="button" href="{% url 'ICmanage:ic-import' kind %}">匯入效率資料</a>{% endif %}</div>
+{% if not user.is_staff %}<p class="hint">此頁可瀏覽 IC 資料；匯入、編輯及刪除需以管理者帳號登入。</p>{% endif %}
 <form id="ic-search" class="search" role="search" method="get">
     <label for="ic-query">即時搜尋 IC 資料</label><input id="ic-query" type="search" name="q" value="{{ query }}" maxlength="120" placeholder="名稱、型號、效率來源或條件" aria-controls="ic-table"><button type="reset">清除</button>
     <label for="ic-sort">排序方式</label>
@@ -23,7 +24,7 @@
     <td data-sort="{{ item.get_mode_display }} {% if item.mode == 'fixed' %}{{ item.efficiency|floatformat:'1' }}%{% else %}{{ item.get_axis_display }} · {{ item.points|length }} 點{% endif %}">{{ item.get_mode_display }}<small>{% if item.mode == 'fixed' %}{{ item.efficiency|floatformat:"1" }}%{% else %}{{ item.get_axis_display }} · {{ item.points|length }} 點{% endif %}</small></td>
     <td data-sort="{{ item.source }}">{{ item.source|default:'—' }}{% if item.mode == 'curve' %}<details><summary>查看曲線資料</summary><pre>{{ item.points }}</pre></details>{% endif %}</td>
     <td><time datetime="{{ item.updated_at|date:'c' }}">{{ item.updated_at|date:'Y-m-d H:i:s' }}</time></td>
-    <td><a href="{% url 'ICmanage:ic-edit' kind item.pk %}">編輯</a> <a class="danger" href="{% url 'ICmanage:ic-delete' kind item.pk %}">刪除</a></td>
+    <td>{% if user.is_staff %}<a href="{% url 'ICmanage:ic-edit' kind item.pk %}">編輯</a> <a class="danger" href="{% url 'ICmanage:ic-delete' kind item.pk %}">刪除</a>{% else %}僅供檢視{% endif %}</td>
 </tr>{% endfor %}<tr id="ic-empty" {% if items %}hidden{% endif %}><td colspan="5">尚無 IC 設定，請匯入效率資料。</td></tr></tbody>
 </table></div>
 <p class="hint">曲線以線性插值計算；超過取樣範圍使用端點效率，計算結果會顯示提示。</p>

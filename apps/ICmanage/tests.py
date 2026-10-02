@@ -3,6 +3,7 @@ from pathlib import Path
 from subprocess import CalledProcessError, run
 from urllib.parse import urljoin
 
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
@@ -16,6 +17,10 @@ from .models import ICSetting
 
 
 class ICManagementTests(TestCase):
+    def setUp(self):
+        self.manager = get_user_model().objects.create_user(username="manager", is_staff=True)
+        self.client.force_login(self.manager)
+
     def test_live_search_and_sorting(self):
         run(["node", str(Path(__file__).parent / "testdata/ic_list.cjs")], check=True)
         for kind in ("rx", "charger"):
@@ -160,13 +165,14 @@ class ICManagementTests(TestCase):
         self.assertIn("name", response.context["form"].errors)
         self.assertEqual(ICSetting.objects.filter(name="測試設定").count(), 1)
 
-    def test_anonymous_access_csrf_and_kind_isolation(self):
+    def test_manager_access_csrf_and_kind_isolation(self):
         item = ICSetting.objects.get(code="cps4019")
         urls = [reverse("ICmanage:ic-edit", args=["rx", item.pk]), reverse("ICmanage:ic-delete", args=["rx", item.pk])]
         for url in urls:
             self.assertEqual(self.client.get(url).status_code, 200)
         self.assertEqual(self.client.post(reverse("ICmanage:ic-delete", args=["charger", item.pk])).status_code, 404)
         secure = Client(enforce_csrf_checks=True)
+        secure.force_login(self.manager)
         for url in urls:
             self.assertEqual(secure.post(url, self.data()).status_code, 403)
         self.assertEqual(ICSetting.objects.count(), 12)
@@ -209,6 +215,9 @@ class ICManagementTests(TestCase):
 
 
 class ICImportTests(TestCase):
+    def setUp(self):
+        self.client.force_login(get_user_model().objects.create_user(username="manager", is_staff=True))
+
     def test_excel_import_uses_displayed_efficiency(self):
         workbook = Workbook()
         sheet = workbook.active

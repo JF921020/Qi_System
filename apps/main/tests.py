@@ -1,15 +1,13 @@
 import json
 import re
 import subprocess
-from tempfile import TemporaryDirectory
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from django.contrib.staticfiles import finders
 from django.core.management import call_command
 from django.test import Client, SimpleTestCase, TestCase
 from django.urls import reverse
-
-
 
 BASE_STATE = json.loads((Path(__file__).parent / "testdata/legacy_results.json").read_text(encoding="utf-8"))[0]["input"]
 

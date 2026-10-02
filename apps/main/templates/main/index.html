@@ -22,6 +22,10 @@
         <li class="nav-item"><a href="{% url 'ICmanage:ic-list' 'rx' %}" style="color:inherit;text-decoration:none;">🔌 IC 管理</a></li>
     </ul>
     <div class="nav-footer">
+        {% if user.is_authenticated %}
+        <p style="padding:0 12px;color:#cbd5e1;">{{ user.username }}{% if user.is_staff %} · 管理者{% endif %}</p>
+        <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit" class="btn-calc">登出</button></form>
+        {% endif %}
         <button type="button" class="btn-calc" onclick="triggerCalc()">▶ 立即計算</button>
         <p id="calcStatus" role="status" aria-live="polite" style="padding:0 12px;color:#cbd5e1;font-size:12px;"></p>
     </div>
@@ -84,6 +88,7 @@
                         <div class="form-group">
                             <label for="batVoltage">3. 充電電壓 <span class="sub-note">(Voltage, V)</span>:</label>
                             <input type="number" min="0" id="batVoltage" class="form-control" value="3.70" step="0.05">
+                            <small>調整電壓或電流會以 P＝V×I 同步更新充電功率並即時重算。效率依所選 IC 曲線決定。</small>
                         </div>
 
                         <!-- 4. 充電電流 (Current, A / mA) -->

@@ -13,6 +13,13 @@
     <a href="{% url 'main:index' %}">← 返回效能計算</a>
     <a href="{% url 'ICmanage:ic-list' 'rx' %}" {% if kind == 'rx' %}aria-current="page"{% endif %}>Rx IC 管理</a>
     <a href="{% url 'ICmanage:ic-list' 'charger' %}" {% if kind == 'charger' %}aria-current="page"{% endif %}>Charger IC 管理</a>
+    {% if user.is_authenticated %}
+    <span>{{ user.username }}{% if user.is_staff %} · 管理者{% endif %}</span>
+    {% if user.is_superuser %}<a href="{% url 'admin:auth_user_changelist' %}">帳號管理</a>{% endif %}
+    <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">登出</button></form>
+    {% elif request.resolver_match.url_name != 'login' %}
+    <a class="button" href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}">管理者登入</a>
+    {% endif %}
 </nav>
 <main>
     {% for message in messages %}<p class="notice" role="status">{{ message }}</p>{% endfor %}

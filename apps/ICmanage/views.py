@@ -1,4 +1,8 @@
+from functools import wraps
+
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.db import IntegrityError, transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -6,6 +10,16 @@ from django.views.decorators.http import require_GET, require_http_methods
 
 from .forms import ICImportForm, ICSettingForm
 from .models import ICSetting
+
+
+def manager_required(view):
+    @login_required
+    @wraps(view)
+    def wrapped(request, *args, **kwargs):
+        if not request.user.is_active or not request.user.is_staff:
+            raise PermissionDenied("僅管理者可變更 IC 資料。")
+        return view(request, *args, **kwargs)
+    return wrapped
 
 
 def kind_title(kind):
@@ -23,6 +37,7 @@ def ic_list(request, kind):
     return render(request, "ICmanage/ic_list.html", {"kind": kind, "title": title, "items": items, "query": query})
 
 
+@manager_required
 @require_http_methods(["GET", "POST"])
 def ic_import(request, kind):
     title = kind_title(kind)
@@ -46,6 +61,7 @@ def ic_import(request, kind):
     return render(request, "ICmanage/ic_import.html", {"kind": kind, "title": title, "form": form})
 
 
+@manager_required
 @require_http_methods(["GET", "POST"])
 def ic_edit(request, kind, pk):
     title = kind_title(kind)
@@ -67,6 +83,7 @@ def ic_edit(request, kind, pk):
     return render(request, "ICmanage/ic_form.html", {"kind": kind, "title": title, "form": form, "item": item})
 
 
+@manager_required
 @require_http_methods(["GET", "POST"])
 def ic_delete(request, kind, pk):
     title = kind_title(kind)

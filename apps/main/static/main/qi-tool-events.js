@@ -1,4 +1,10 @@
 // ─── 6. 事件監聽 ───
+function syncChargingPower() {
+    state.sysPower = state.batVoltage * state.batCapacity / 1000 * state.batMaxC;
+    const powerInput = document.getElementById('sysPower');
+    if (powerInput) powerInput.value = state.sysPower;
+}
+
 function initEventListeners() {
     ['rxIc', 'chargerIc'].forEach(field => {
         state[field + 'Select'] = document.getElementById(field + 'Select').value;
@@ -51,6 +57,9 @@ function initEventListeners() {
             } else {
                 state[id] = val;
             }
+            if (['chargeCurrentA', 'chargeCurrentmA', 'batVoltage', 'batCapacity', 'batMaxC'].includes(id)) {
+                syncChargingPower();
+            }
             triggerCalc();
         });
     });
@@ -72,6 +81,7 @@ function initEventListeners() {
                 const input = document.getElementById(field);
                 if (input) input.value = value;
             }
+            syncChargingPower();
             triggerCalc();
             const hint = document.getElementById('chargeCurrentLimits');
             if (hint) hint.textContent += ` 已將超限電流修正為 ${limited} A。`;
@@ -89,6 +99,7 @@ function initEventListeners() {
                 const {min, max} = currentLimits(state);
                 if (Number.isFinite(max) && min <= max && state.batCapacity > 0) {
                     state.batMaxC = min * 1000 / state.batCapacity;
+                    syncChargingPower();
                     syncUIInputs();
                 }
             }

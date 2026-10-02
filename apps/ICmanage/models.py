@@ -4,6 +4,7 @@ import uuid
 from django.core.exceptions import ValidationError
 from django.db import models
 
+
 def number(value, field, minimum=0, maximum=1_000_000):
     """Validate numeric IC settings before database writes."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -48,8 +49,8 @@ class ICSetting(models.Model):
             self.points = []
         elif self.mode == "curve":
             try:
-                if not isinstance(self.points, list) or not 3 <= len(self.points) <= 1000:
-                    raise ValueError("曲線需有 3 至 1000 個資料點。")
+                if not isinstance(self.points, list) or not 3 <= len(self.points) <= 10000:
+                    raise ValueError("曲線需有 3 至 10000 個資料點。")
                 previous = -1
                 for point in self.points:
                     if not isinstance(point, list) or len(point) != 2:

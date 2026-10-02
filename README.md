@@ -40,7 +40,7 @@ Django 負責頁面與 IC 資料庫管理。IC 曲線插值、ACR、Qrx、線圈
 必填選項：`caseMaterial` (`pc_abs/aluminum/zinc`)、`ncWrap` (`yes/no`)、`rxIcSelect`、`chargerIcSelect`。
 `kVal` 範圍為 0–1；`sysPower` 與 `batMaxC` 可為零，其餘上述數值必須大於零（目前最小 0.000001），數值上限為 1000000。
 選擇 `custom` 時需提供對應的 `rxIcEff` 或 `chargerIcEff` (0–100%)。
-數位化工具會將 `custom_*` 型號加入瀏覽器的曲線目錄：`axis` 為 `power/current`，`data` 為 3–1000 組 `[x, efficiency]`，x 必須非負且嚴格遞增，效率為 0–100%。
+數位化工具會將 `custom_*` 型號加入瀏覽器的曲線目錄：`axis` 為 `power/current`，`data` 為 3–10000 組 `[x, efficiency]`，x 必須非負且嚴格遞增，效率為 0–100%。
 資料庫曲線在頁面載入時傳入瀏覽器；本次套用的自訂曲線只留在頁面記憶體。兩類 IC 均依設定的 power/current 軸查表，範圍以外沿用端點效率。
 
 ## IC 管理
@@ -75,7 +75,7 @@ voltage_v,current_ma,efficiency_percent
 5,1000,95.6
 ```
 
-電流也可用 `current_a`，功率可用 `power_w`；小數效率改用 `efficiency_fraction`。有電壓欄會篩選指定電壓，無電壓欄則由使用者確認條件。空白效率略過、零值保留，拒絕非有限值、超出範圍、重複 X 及公式。5 MB／10000 列上限；超過 1000 點時合併共線插值點，仍超限則拒絕。原始檔不保存。
+電流也可用 `current_a`，功率可用 `power_w`；小數效率改用 `efficiency_fraction`。有電壓欄會篩選指定電壓，無電壓欄則由使用者確認條件。空白效率略過、零值保留，拒絕非有限值、超出範圍、重複 X 及公式。5 MB／10000 列上限（包含表頭及說明列）；曲線支援最多 10000 點，超過 1000 點時合併共線插值點，其餘資料保留。原始檔不保存。
 
 來源保留表頭說明，可於匯入後編輯。電壓條件尚不會自動限制計算頁選項；請自行選對設定，並確認 Rx 數值是否已含線圈／Tx 損耗。沿用現有 IC 管理權限與 CSRF 保護。
 

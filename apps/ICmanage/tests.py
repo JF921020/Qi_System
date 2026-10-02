@@ -2,6 +2,7 @@ from io import BytesIO
 from subprocess import CalledProcessError
 from urllib.parse import urljoin
 
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -324,3 +325,25 @@ class ICImportTests(TestCase):
         self.assertEqual(result["points"][0], [0, 0.5])
         with self.assertRaises(ValueError):
             read_curve(self.upload("current_a,efficiency_percent\n" + "1,80\n" * 10000), "", 5)
+
+    def test_dense_non_collinear_curve_import_save_and_calculation(self):
+        # 9999 data rows plus the header reach the existing upload row limit.
+        csv = "current_ma,efficiency_percent\n" + "\n".join(
+            f"{i},{80 + i % 2}" for i in range(9999)
+        )
+        response = self.client.post(
+            reverse("ICmanage:ic-import", args=["charger"]),
+            self.payload(csv, model_number="Dense"),
+        )
+        self.assertEqual(response.status_code, 302)
+        item = ICSetting.objects.get(name="Dense_5V")
+        self.assertEqual(len(item.points), 9999)
+        catalog = self.client.get(reverse("main:index")).context["curves"]
+        state = {**main_tests.BASE_STATE, "chargerIcSelect": item.code,
+                 "batCapacity": 500.5, "batMaxC": 1}
+        self.assertAlmostEqual(main_tests.calculate_js(state, catalog)["chargerIcEff"], 80.5)
+        item.points.append([9999, 81])
+        item.full_clean()  # Exactly 10000 points are also valid for manual editing.
+        item.points.append([10000, 80])
+        with self.assertRaises(ValidationError):
+            item.full_clean()

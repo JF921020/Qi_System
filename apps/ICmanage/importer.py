@@ -172,7 +172,6 @@ def parse_rows(rows, voltage, excel=False):
         if len(simplified) == 2:
             simplified.insert(1, points[len(points) // 2])
         points = simplified
-        if len(points) > 1000:
-            raise ValueError("合併共線點後仍超過 1000 點，請縮小匯入範圍。")
+        # MAX_ROWS already keeps the curve within the 10000-point storage limit.
     return {"axis": axis, "points": points, "count": original_count,
             "skipped": skipped, "notes": "；".join(notes)}

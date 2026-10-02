@@ -44,6 +44,14 @@ if (process.argv.includes('--calculate')) {
         custom[kind+'Fixed'].custom_test=0;
         assert.equal(ctx.calculate(input,custom)[field+'Eff'],0);
     }
+    // The browser accepts the expanded storage limit and rejects larger curves.
+    const dense = structuredClone(catalog);
+    dense.charger.dense = {axis: 'current', data: Array.from({length: 10000}, (_, i) => [i / 1000, 80 + i % 2])};
+    const denseInput = {...s, chargerIcSelect: 'dense', batCapacity: 500.5, batMaxC: 1};
+    near(ctx.calculate(denseInput, dense).chargerIcEff, 80.5);
+    dense.charger.dense.data.push([10, 80]);
+    assert.throws(() => ctx.calculate(denseInput, dense), /10000/);
+
     // Digitized mA points must use the same canonical A catalog as database curves.
     const elements = {
         digModelName: {value: 'mA test'}, digAxisType: {value: 'ma'},

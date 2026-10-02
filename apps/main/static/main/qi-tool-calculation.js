@@ -19,8 +19,8 @@ function calculateEfficiency(s, kind, current, catalog) {
     const curve = Object.hasOwn(catalog[kind], selected) ? catalog[kind][selected] : null;
     if (!curve) throw new Error(`未知的 ${kind} 型號`);
     if (!['power', 'current'].includes(curve.axis)) throw new Error(`${kind} 曲線 axis 必須是 power 或 current`);
-    if (!Array.isArray(curve.data) || curve.data.length < 3 || curve.data.length > 1000) {
-        throw new Error(`${kind} 曲線需有 3 至 1000 個資料點`);
+    if (!Array.isArray(curve.data) || curve.data.length < 3 || curve.data.length > 10000) {
+        throw new Error(`${kind} 曲線需有 3 至 10000 個資料點`);
     }
     let previous = -1;
     for (const point of curve.data) {

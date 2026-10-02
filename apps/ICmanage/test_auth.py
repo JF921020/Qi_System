@@ -1,8 +1,9 @@
 from secrets import token_urlsafe
+from urllib.parse import parse_qs, urljoin, urlsplit
 
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
-from django.urls import reverse
+from django.urls import get_script_prefix, reverse, set_script_prefix
 
 from .models import ICSetting
 
@@ -78,3 +79,33 @@ class AccountAccessTests(TestCase):
                  for action in ("ic-edit", "ic-delete")]
         for url in urls:
             self.assertEqual(client.post(url, {}).status_code, 403)
+
+    def test_auth_redirects_through_prefix_rewriting_proxy(self):
+        prefix = "/proxy/8000"
+        self.addCleanup(set_script_prefix, get_script_prefix())
+
+        def follow_proxy(response, source, expected):
+            self.assertEqual(response.status_code, 302)
+            location = response["Location"]
+            # The deployment proxy prepends its mount to root-relative Locations.
+            target = prefix + location if location.startswith("/") else urljoin(prefix + source, location)
+            self.assertEqual(target, prefix + expected)
+            self.assertEqual(self.client.get(target[len(prefix):]).status_code, 200)
+            return target
+
+        with self.settings(FORCE_SCRIPT_NAME=prefix):
+            set_script_prefix(prefix)
+            protected = self.client.get("/ics/rx/import/")
+            target = follow_proxy(protected, "/ics/rx/import/",
+                                  "/accounts/login/?next=/proxy/8000/ics/rx/import/")
+            protected_next = parse_qs(urlsplit(target).query)["next"][0]
+            for next_url, expected in ((protected_next, "/ics/rx/import/"),
+                                       (prefix + "/ics/rx/?q=test", "/ics/rx/?q=test"),
+                                       ("", "/"), ("https://example.org/", "/")):
+                logged_in = self.client.post("/accounts/login/", {
+                    "username": self.manager.username, "password": self.password, "next": next_url,
+                })
+                follow_proxy(logged_in, "/accounts/login/", expected)
+                logged_out = self.client.post("/accounts/logout/")
+                follow_proxy(logged_out, "/accounts/logout/", "/")
+                self.assertNotIn("_auth_user_id", self.client.session)

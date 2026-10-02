@@ -29,7 +29,6 @@ class ICSetting(models.Model):
     points = models.JSONField("曲線資料點", default=list, blank=True)
     provisional = models.BooleanField("暫定數據（尚未驗證）", default=True)
     source = models.CharField("資料來源／量測條件", max_length=500, blank=True)
-    created_at = models.DateTimeField("新增時間", auto_now_add=True, null=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

@@ -1,6 +1,5 @@
 from django.contrib import messages
 from django.db import IntegrityError, transaction
-from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods
@@ -20,8 +19,7 @@ def ic_list(request, kind):
     title = kind_title(kind)
     items = ICSetting.objects.filter(kind=kind)
     query = request.GET.get("q", "").strip()[:120]
-    if query:
-        items = items.filter(Q(name__icontains=query) | Q(model_number__icontains=query))
+    # Keep the full list available so clearing a live search restores every row.
     return render(request, "ICmanage/ic_list.html", {"kind": kind, "title": title, "items": items, "query": query})
 
 

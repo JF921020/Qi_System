@@ -1,17 +1,31 @@
 {% extends 'ICmanage/ic_base.html' %}
+{% load static %}
 {% block content %}
 <div class="heading"><div><p class="eyebrow">COMPONENT LIBRARY</p><h1>{{ title }} 管理</h1>
 <p>保存不同型號與量測條件，供效能計算直接查表。</p></div>
 <a class="button" href="{% url 'ICmanage:ic-import' kind %}">匯入效率資料</a></div>
-<form class="search" method="get"><label for="ic-query">搜尋設定名稱或型號</label><input id="ic-query" name="q" value="{{ query }}" maxlength="120"><button type="submit">搜尋</button><a href="{% url 'ICmanage:ic-list' kind %}">清除</a></form>
-<div class="table-wrap"><table>
-<thead><tr><th>設定名稱 / 型號</th><th>效率來源</th><th>資料來源 / 條件</th><th>操作</th></tr></thead>
-<tbody>{% for item in items %}<tr>
-    <td><strong>{{ item.name }}</strong><small>{{ item.model_number }}</small></td>
-    <td>{{ item.get_mode_display }}<small>{% if item.mode == 'fixed' %}{{ item.efficiency|floatformat:"1" }}%{% else %}{{ item.get_axis_display }} · {{ item.points|length }} 點{% endif %}</small></td>
-    <td>{{ item.source|default:'—' }}{% if item.mode == 'curve' %}<details><summary>查看曲線資料</summary><pre>{{ item.points }}</pre></details>{% endif %}</td>
+<form id="ic-search" class="search" role="search" method="get">
+    <label for="ic-query">即時搜尋 IC 資料</label><input id="ic-query" type="search" name="q" value="{{ query }}" maxlength="120" placeholder="名稱、型號、效率來源或條件" aria-controls="ic-table"><button type="reset">清除</button>
+    <label for="ic-sort">排序方式</label>
+    <select id="ic-sort" aria-controls="ic-table">
+        <option value="name-asc">名稱：升冪</option>
+        <option value="name-desc">名稱：降冪</option>
+        <option value="updated-desc">最後修改時間：新到舊</option>
+        <option value="updated-asc">最後修改時間：舊到新</option>
+    </select>
+</form>
+<noscript><p class="hint">請啟用 JavaScript 以使用即時搜尋與欄位排序，目前顯示全部資料。</p></noscript>
+<p id="ic-count" class="hint" role="status" aria-live="polite"></p>
+<div class="table-wrap"><table id="ic-table">
+<thead><tr><th id="ic-name-heading" scope="col">設定名稱 / 型號</th><th scope="col">效率來源</th><th scope="col">資料來源 / 條件</th><th scope="col">最後修改時間</th><th scope="col">操作</th></tr></thead>
+<tbody>{% for item in items %}<tr data-ic-row data-name="{{ item.name }}" data-updated="{{ item.updated_at|date:'U' }}">
+    <td data-sort="{{ item.name }} {{ item.model_number }}"><strong>{{ item.name }}</strong><small>{{ item.model_number }}</small></td>
+    <td data-sort="{{ item.get_mode_display }} {% if item.mode == 'fixed' %}{{ item.efficiency|floatformat:'1' }}%{% else %}{{ item.get_axis_display }} · {{ item.points|length }} 點{% endif %}">{{ item.get_mode_display }}<small>{% if item.mode == 'fixed' %}{{ item.efficiency|floatformat:"1" }}%{% else %}{{ item.get_axis_display }} · {{ item.points|length }} 點{% endif %}</small></td>
+    <td data-sort="{{ item.source }}">{{ item.source|default:'—' }}{% if item.mode == 'curve' %}<details><summary>查看曲線資料</summary><pre>{{ item.points }}</pre></details>{% endif %}</td>
+    <td><time datetime="{{ item.updated_at|date:'c' }}">{{ item.updated_at|date:'Y-m-d H:i:s' }}</time></td>
     <td><a href="{% url 'ICmanage:ic-edit' kind item.pk %}">編輯</a> <a class="danger" href="{% url 'ICmanage:ic-delete' kind item.pk %}">刪除</a></td>
-</tr>{% empty %}<tr><td colspan="4">{% if query %}沒有符合搜尋的設定。{% else %}尚無 IC 設定，請匯入效率資料。{% endif %}</td></tr>{% endfor %}</tbody>
+</tr>{% endfor %}<tr id="ic-empty" {% if items %}hidden{% endif %}><td colspan="5">尚無 IC 設定，請匯入效率資料。</td></tr></tbody>
 </table></div>
 <p class="hint">曲線以線性插值計算；超過取樣範圍使用端點效率，計算結果會顯示提示。</p>
+<script src="{% static 'ICmanage/ic-list.js' %}" defer></script>
 {% endblock %}

@@ -1,5 +1,6 @@
 from io import BytesIO
-from subprocess import CalledProcessError
+from pathlib import Path
+from subprocess import CalledProcessError, run
 from urllib.parse import urljoin
 
 from django.core.exceptions import ValidationError
@@ -15,6 +16,36 @@ from .models import ICSetting
 
 
 class ICManagementTests(TestCase):
+    def test_live_search_and_sorting(self):
+        run(["node", str(Path(__file__).parent / "testdata/ic_list.cjs")], check=True)
+        for kind in ("rx", "charger"):
+            response = self.client.get(reverse("ICmanage:ic-list", args=[kind]), {"q": "<missing>"})
+            self.assertEqual(len(response.context["items"]), ICSetting.objects.filter(kind=kind).count())
+            self.assertContains(response, 'value="&lt;missing&gt;"')
+            self.assertContains(response, 'ICmanage/ic-list.js')
+            self.assertContains(response, 'id="ic-sort"', count=1)
+            self.assertContains(response, '最後修改時間：新到舊')
+            self.assertContains(response, '<th scope="col">最後修改時間</th>', html=True)
+            self.assertNotContains(response, 'class="sort-button"')
+
+    def test_import_time_survives_edit_and_updated_time_is_displayed(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        item = ICSetting.objects.create(kind="rx", name="時間測試", model_number="TEST", mode="fixed", efficiency=80)
+        created = item.created_at
+        self.assertIsNotNone(created)
+        ICSetting.objects.filter(pk=item.pk).update(updated_at=created - timedelta(days=1))
+        item.name = "時間測試更新"
+        item.save()
+        item.refresh_from_db()
+        self.assertEqual(item.created_at, created)
+        self.assertGreaterEqual(item.updated_at, created)
+        response = self.client.get(reverse("ICmanage:ic-list", args=["rx"]))
+        self.assertContains(response, timezone.localtime(item.updated_at).strftime('%Y-%m-%d %H:%M:%S'))
+        self.assertContains(response, f'data-updated="{int(item.updated_at.timestamp())}"')
+
     def test_import_is_the_only_creation_entry(self):
         before = ICSetting.objects.count()
         for kind in ("rx", "charger"):

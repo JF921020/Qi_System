@@ -5,25 +5,35 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ title }} 管理</title>
-    <link rel="stylesheet" href="{% static 'ICmanage/ic-manager.css' %}">
+    <link rel="stylesheet" href="{% static 'main/qi-tool.css' %}">
+    <link rel="stylesheet" href="{% static 'ICmanage/ic-manager.css' %}?v=20261005-2">
 </head>
-<body>
-<header><span>IC 資料管理</span></header>
-<nav aria-label="IC 管理導覽">
-    <a href="{% url 'main:index' %}">← 返回效能計算</a>
-    <a href="{% url 'ICmanage:ic-list' 'rx' %}" {% if kind == 'rx' %}aria-current="page"{% endif %}>Rx IC 管理</a>
-    <a href="{% url 'ICmanage:ic-list' 'charger' %}" {% if kind == 'charger' %}aria-current="page"{% endif %}>Charger IC 管理</a>
+<body class="ic-manager" data-kind="{{ kind }}">
+<aside class="nav-sidebar">
+    <div class="nav-brand">⚡ Qi無線充電預測工具_TWS (相容定位功能)</div>
+    <nav class="nav-menu" aria-label="IC 管理導覽">
+        <a class="nav-item" href="{% url 'main:index' %}">⚡ 返回效能計算</a>
+        <a class="nav-item{% if kind == 'rx' %} active{% endif %}" href="{% url 'ICmanage:ic-list' 'rx' %}" {% if kind == 'rx' %}aria-current="page"{% endif %}>🔌 Rx IC 管理</a>
+        <a class="nav-item{% if kind == 'charger' %} active{% endif %}" href="{% url 'ICmanage:ic-list' 'charger' %}" {% if kind == 'charger' %}aria-current="page"{% endif %}>🔋 Charger IC 管理</a>
+        {% if user.is_superuser %}<a class="nav-item" href="{% url 'admin:auth_user_changelist' %}">⚙️ 帳號管理</a>{% endif %}
+    </nav>
+    <div class="nav-footer">
     {% if user.is_authenticated %}
-    <span>{{ user.username }}{% if user.is_staff %} · 管理者{% endif %}</span>
-    {% if user.is_superuser %}<a href="{% url 'admin:auth_user_changelist' %}">帳號管理</a>{% endif %}
+    <p class="nav-user">{{ user.username }}{% if user.is_staff %} · 管理者{% endif %}</p>
     <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">登出</button></form>
     {% elif request.resolver_match.url_name != 'login' %}
     <a class="button" href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}">管理者登入</a>
     {% endif %}
-</nav>
-<main>
+    </div>
+</aside>
+<div class="workspace-layout">
+    <header class="top-navbar">
+        <div class="breadcrumb">WORKSPACE &gt; <span>IC 資料管理{% if title %} / {{ title }}{% endif %}</span></div>
+    </header>
+<main class="ic-content">
     {% for message in messages %}<p class="notice" role="status">{{ message }}</p>{% endfor %}
     {% block content %}{% endblock %}
 </main>
+</div>
 </body>
 </html>

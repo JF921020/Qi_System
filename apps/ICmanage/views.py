@@ -4,11 +4,12 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import IntegrityError, transaction
-from django.http import Http404
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods
 
 from .forms import ICImportForm, ICSettingForm
+from .importer import read_worksheets
 from .models import ICSetting
 
 
@@ -41,6 +42,14 @@ def ic_list(request, kind):
 @require_http_methods(["GET", "POST"])
 def ic_import(request, kind):
     title = kind_title(kind)
+    if request.method == "POST" and request.POST.get("action") == "worksheets":
+        upload = request.FILES.get("file")
+        if not upload:
+            return JsonResponse({"error": "請選擇 XLSX 檔案。"}, status=400)
+        try:
+            return JsonResponse({"worksheets": read_worksheets(upload)})
+        except ValueError as error:
+            return JsonResponse({"error": str(error)}, status=400)
     form = ICImportForm(request.POST if request.method == "POST" else None,
                         request.FILES if request.method == "POST" else None,
                         instance=ICSetting(kind=kind))

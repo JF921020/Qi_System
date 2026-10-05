@@ -1,17 +1,23 @@
 {% extends 'ICmanage/ic_base.html' %}
+{% load static %}
 {% block content %}
 <p class="eyebrow">{{ title }} / IMPORT</p>
 <h1>匯入 {{ title }} 效率資料</h1>
-<p>上傳 Excel 或 CSV，設定名稱自動使用「型號_電壓」，例如 MP2733_5V、MP2733_12V。支援「電池效能表」的 IC 明細工作表。</p>
-<form class="editor" method="post" enctype="multipart/form-data">
+<p>CSV 自動使用檔名（不含副檔名），不需輸入名稱；XLSX 選檔後請選擇要匯入的工作表，以工作表名稱取得型號。設定名稱自動使用「型號_電壓」，例如 MP2733_5V。</p>
+<form id="ic-import-form" class="editor" method="post" enctype="multipart/form-data">
     {% csrf_token %}
     {{ form.non_field_errors }}
-    {% for field in form %}<div class="field">{{ field.label_tag }}{{ field }}{{ field.errors }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}</div>{% endfor %}
+    {{ form.worksheet.errors }}
+    {% for field in form %}<div class="field" {% if field.name == 'worksheet' %}id="worksheet-field" hidden{% endif %}>{{ field.label_tag }}{{ field }}{% if field.name != 'worksheet' %}{{ field.errors }}{% endif %}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}</div>{% endfor %}
+    <p id="import-status" class="hint" role="status" aria-live="polite"></p>
+    <noscript><p class="hint">XLSX 工作表選擇需要啟用 JavaScript；CSV 可直接匯入。</p></noscript>
     <p class="hint">最多 5 MB、10000 列。空白效率略過、0% 保留；公式請先轉為數值。若有錯誤，本次不會新增設定，修正後請重新選擇檔案。</p>
     <div class="actions"><button type="submit">匯入並儲存</button><a href="{% url 'ICmanage:ic-list' kind %}">取消</a></div>
 </form>
+<script src="{% static 'ICmanage/ic-import.js' %}?v=20261005-1" defer></script>
 <details open><summary>支援格式與單位</summary>
 <p>CSV 使用 UTF-8 編碼，第一列為欄位名稱。例如：</p>
+<p>型號自動移除 Charger／cherger／Rx 前綴及 _5V／_12V 後綴，例如 Charger_MP2733.csv 在 5V 匯入後為 MP2733_5V。完整檔名或工作表名稱會保留在來源。</p>
 <p>Excel 效率採用儲存格顯示精度：例如 0.0000 格式下的 0.94309，會先取 0.9431，再匯入為 94.31%。支援一般數值與百分比格式；General 格式保留原數值，複雜自訂格式請先改成數值格式。CSV 使用檔案內的數字。</p>
 <pre>voltage_v,current_ma,efficiency_percent
 5,100,82

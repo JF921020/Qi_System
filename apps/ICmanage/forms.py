@@ -1,4 +1,5 @@
 import re
+from pathlib import Path
 from typing import ClassVar
 
 from django import forms
@@ -25,15 +26,15 @@ class ICSettingForm(forms.ModelForm):
 
 class ICImportForm(forms.ModelForm):
     file = forms.FileField(label="效率資料檔案", widget=forms.ClearableFileInput(attrs={"accept": ".xlsx,.csv"}))
+    worksheet = forms.CharField(label="要匯入的工作表", required=False, strip=False,
+                                widget=forms.Select(choices=[("", "請先選擇 XLSX 檔案")]))
     voltage = forms.TypedChoiceField(label="匯入電壓", choices=[(5, "5V"), (12, "12V")], coerce=int, initial=5,
                                     help_text="有電壓欄時僅匯入符合的列；無電壓欄時，請確認整份資料屬於此電壓。")
 
     class Meta:
         model = ICSetting
-        fields = ("model_number", "file", "voltage", "source")
-        labels: ClassVar = {"model_number": "IC 型號／Excel 工作表名稱"}
-        help_texts: ClassVar = {"model_number": "Excel 請填完整工作表名稱，例如 Charger_MP2733、Rx_CV8045D；CSV 直接填型號。自動移除 Charger／cherger／Rx 前綴與 _5V／_12V 後綴，設定名稱由型號加上所選電壓產生，例如 MP2733_5V。",
-                               "source": "補充資料來源、電池電壓與量測邊界。"}
+        fields = ("file", "worksheet", "voltage", "source")
+        help_texts: ClassVar = {"source": "補充資料來源、電池電壓與量測邊界。"}
 
     def _post_clean(self):
         # A failed upload has no model curve to validate yet.
@@ -42,19 +43,26 @@ class ICImportForm(forms.ModelForm):
 
     def clean(self):
         data = super().clean()
-        if any(field not in data for field in ("file", "voltage", "model_number")):
+        if any(field not in data for field in ("file", "voltage")):
             return data
-        worksheet = data["model_number"]
-        data["model_number"] = re.sub(r"^(?:charger|cherger|rx)(?:[\s_-]+|$)", "", worksheet, flags=re.IGNORECASE).strip()
+        is_excel = Path(data["file"].name).suffix.lower() == ".xlsx"
+        worksheet = data.get("worksheet", "") if is_excel else ""
+        if is_excel and not worksheet:
+            self.add_error("worksheet", "請選擇要匯入的工作表。")
+            return data
+        origin = worksheet if is_excel else Path(data["file"].name).stem
+        name_field = "worksheet" if is_excel else "file"
+        data["model_number"] = re.sub(r"^(?:charger|cherger|rx)(?:[\s_-]+|$)", "", origin.strip(), flags=re.IGNORECASE).strip()
         data["model_number"] = re.sub(r"_(?:5|12)V$", "", data["model_number"], flags=re.IGNORECASE).strip()
         if not data["model_number"]:
-            self.add_error("model_number", "移除前綴後型號不可空白，請填寫完整型號／工作表名稱。")
+            self.add_error(name_field, "移除前綴後型號不可空白，請調整檔名或工作表名稱。")
             return data
         name = f'{data["model_number"]}_{data["voltage"]}V'
         if len(name) > ICSetting._meta.get_field("name").max_length:
-            self.add_error("model_number", "型號加上電壓後綴後不可超過 120 字。")
+            self.add_error(name_field, "型號加上電壓後綴後不可超過 120 字。")
             return data
         self.instance.name = data["name"] = name
+        self.instance.model_number = data["model_number"]
         try:
             self.result = read_curve(data["file"], worksheet, data["voltage"])
         except ValueError as error:
@@ -63,7 +71,7 @@ class ICImportForm(forms.ModelForm):
         self.instance.mode = "curve"
         self.instance.axis = self.result["axis"]
         self.instance.points = self.result["points"]
-        provenance = f'{data["voltage"]}V；{worksheet}；{self.result["notes"]}'
+        provenance = f'{data["voltage"]}V；{worksheet if is_excel else data["file"].name}；{self.result["notes"]}'
         data["source"] = "；".join(filter(None, [data.get("source"), provenance]))
         if len(data["source"]) > 500:
             self.add_error("source", "來源及工作表說明合計超過 500 字，請縮短來源文字或表頭說明。")

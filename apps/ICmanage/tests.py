@@ -218,6 +218,58 @@ class ICImportTests(TestCase):
     def setUp(self):
         self.client.force_login(get_user_model().objects.create_user(username="manager", is_staff=True))
 
+    def test_import_file_selection_in_browser(self):
+        run(["node", str(Path(__file__).parent / "testdata/ic_import.cjs")], check=True)
+
+    def test_worksheet_discovery_and_explicit_selection(self):
+        url = reverse("ICmanage:ic-import", args=["rx"])
+        workbook = Workbook()
+        workbook.active.title = "摘要"
+        for title, efficiency in [("Rx_First", 80), (" Rx_Second ", 90)]:
+            sheet = workbook.create_sheet(title)
+            sheet.append(["current_ma", "efficiency_percent"])
+            for current in (100, 500, 1000):
+                sheet.append([current, efficiency])
+        content = BytesIO()
+        workbook.save(content)
+
+        def upload():
+            return SimpleUploadedFile("資料.XLSX", content.getvalue())
+
+        before = ICSetting.objects.count()
+        response = self.client.post(url, {"action": "worksheets", "file": upload()})
+        self.assertEqual(response.json(), {"worksheets": ["摘要", "Rx_First", " Rx_Second "]})
+        self.assertEqual(ICSetting.objects.count(), before)
+        for selection, error_field in [("", "worksheet"), ("missing", "file")]:
+            response = self.client.post(url, self.payload("", file=upload(), worksheet=selection))
+            self.assertIn(error_field, response.context["form"].errors)
+        self.assertEqual(ICSetting.objects.count(), before)
+        response = self.client.post(url, self.payload("", file=upload(), worksheet=" Rx_Second "))
+        self.assertEqual(response.status_code, 302)
+        item = ICSetting.objects.get(name="Second_5V")
+        self.assertEqual(item.points, [[100, 90], [500, 90], [1000, 90]])
+
+    def test_worksheet_discovery_rejects_invalid_uploads_and_requires_manager_and_csrf(self):
+        url = reverse("ICmanage:ic-import", args=["rx"])
+        before = ICSetting.objects.count()
+        for upload in (None, SimpleUploadedFile("bad.xlsx", b"not zip"),
+                       SimpleUploadedFile("bad.csv", b"x"),
+                       SimpleUploadedFile("large.xlsx", b"x" * (5 * 1024 * 1024 + 1))):
+            data = {"action": "worksheets"}
+            if upload:
+                data["file"] = upload
+            response = self.client.post(url, data)
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("error", response.json())
+        secure = Client(enforce_csrf_checks=True)
+        secure.force_login(get_user_model().objects.get(username="manager"))
+        self.assertEqual(secure.post(url, {"action": "worksheets"}).status_code, 403)
+        self.client.logout()
+        self.assertEqual(self.client.post(url, {"action": "worksheets"}).status_code, 302)
+        self.client.force_login(get_user_model().objects.create_user(username="viewer"))
+        self.assertEqual(self.client.post(url, {"action": "worksheets"}).status_code, 403)
+        self.assertEqual(ICSetting.objects.count(), before)
+
     def test_excel_import_uses_displayed_efficiency(self):
         workbook = Workbook()
         sheet = workbook.active
@@ -233,34 +285,35 @@ class ICImportTests(TestCase):
         result = read_curve(SimpleUploadedFile("curve.xlsx", data.getvalue()), sheet.title, 5)
         self.assertEqual(result["points"], [[100, 94.3], [101, 94.31], [102, 94.32], [103, 94.33], [104, 94.4]])
         response = self.client.post(reverse("ICmanage:ic-import", args=["charger"]), self.payload(
-            "", model_number=sheet.title, file=SimpleUploadedFile("curve.xlsx", data.getvalue())))
+            "", worksheet=sheet.title, file=SimpleUploadedFile("curve.xlsx", data.getvalue())))
         self.assertEqual(response.status_code, 302)
         self.assertEqual(ICSetting.objects.get(name="CPS5201_5V").points, result["points"])
 
-    def test_names_are_generated_from_model_and_voltage(self):
+    def test_names_are_generated_from_filename_and_voltage(self):
         url = reverse("ICmanage:ic-import", args=["charger"])
         self.assertNotContains(self.client.get(url), 'name="name"')
+        self.assertNotContains(self.client.get(url), 'name="model_number"')
         csv = "current_ma,efficiency_percent\n100,80\n500,90\n1000,95"
         for voltage in (5, 12):
             response = self.client.post(url, self.payload(
-                csv, model_number=f"Charger_MP2733_{voltage}V", voltage=str(voltage), name="ignored"))
+                csv, filename=f"Charger_MP2733_{voltage}V.CSV", voltage=str(voltage),
+                name="ignored", model_number="ignored", worksheet="ignored"))
             self.assertEqual(response.status_code, 302)
             item = ICSetting.objects.get(name=f"MP2733_{voltage}V")
             self.assertEqual(item.model_number, "MP2733")
             self.assertIn(f"Charger_MP2733_{voltage}V", item.source)
         before = ICSetting.objects.count()
-        response = self.client.post(url, self.payload(csv, model_number="MP2733"))
+        response = self.client.post(url, self.payload(csv, filename="MP2733.csv"))
         self.assertIn("__all__", response.context["form"].errors)
-        response = self.client.post(url, self.payload(csv, model_number="X" * 120))
-        self.assertIn("model_number", response.context["form"].errors)
+        response = self.client.post(url, self.payload(csv, filename="X" * 120 + ".csv"))
+        self.assertIn("file", response.context["form"].errors)
         self.assertEqual(ICSetting.objects.count(), before)
 
-    def upload(self, text):
-        return SimpleUploadedFile("curve.csv", text.encode("utf-8-sig"))
+    def upload(self, text, filename="TEST.csv"):
+        return SimpleUploadedFile(filename, text.encode("utf-8-sig"))
 
-    def payload(self, text, **kwargs):
-        return {"model_number": "TEST", "voltage": "5",
-                "source": "實測", "file": self.upload(text), **kwargs}
+    def payload(self, text, filename="TEST.csv", **kwargs):
+        return {"voltage": "5", "source": "實測", "file": self.upload(text, filename), **kwargs}
 
     def test_csv_saved_and_available_without_overwriting(self):
         text = "voltage_v,current_ma,efficiency_fraction\n5,1000,0.9\n12,100,0.5\n5,100,0\n5,300,\n5,500,0.8\n"
@@ -297,7 +350,7 @@ class ICImportTests(TestCase):
         for upload in [SimpleUploadedFile("bad.xlsx", b"not zip"),
                        SimpleUploadedFile("bad.txt", b"x"),
                        SimpleUploadedFile("large.csv", b"x" * (5 * 1024 * 1024 + 1))]:
-            response = self.client.post(url, self.payload("", file=upload))
+            response = self.client.post(url, self.payload("", file=upload, worksheet="Test"))
             self.assertIn("file", response.context["form"].errors)
         self.assertEqual(ICSetting.objects.count(), before)
         self.assertEqual(Client(enforce_csrf_checks=True).post(url, self.payload(header + "0,80\n1,85\n2,90")).status_code, 403)
@@ -327,18 +380,18 @@ class ICImportTests(TestCase):
             with self.assertRaises(ValueError):
                 read_curve(upload(), sheet_name, voltage)
         url = reverse("ICmanage:ic-import", args=["charger"])
-        response = self.client.post(url, self.payload("", file=upload(), model_number="Charger_Test"))
+        response = self.client.post(url, self.payload("", file=upload(), worksheet="Charger_Test"))
         self.assertEqual(response.status_code, 302)
         item = ICSetting.objects.get(name="Test_5V")
         self.assertIn("理論值", item.source)
         self.assertIn("Charger_Test", item.source)
         self.assertEqual(item.model_number, "Test")
 
-    def test_combined_model_field_strips_only_category_prefix(self):
+    def test_filename_strips_only_category_prefix(self):
         url = reverse("ICmanage:ic-import", args=["rx"])
         page = self.client.get(url)
-        self.assertContains(page, "IC 型號／Excel 工作表名稱")
-        self.assertNotContains(page, 'name="worksheet"')
+        self.assertNotContains(page, 'name="model_number"')
+        self.assertContains(page, 'name="worksheet"')
         csv = "current_ma,efficiency_percent\n100,80\n500,90\n1000,95"
         for entered, expected in [
             ("Rx_CV8045D", "CV8045D"), ("CHERGER_MP2733", "MP2733"),
@@ -346,15 +399,15 @@ class ICImportTests(TestCase):
             ("MP2733", "MP2733"), ("RX123", "RX123"), ("TEST_RX_01", "TEST_RX_01"),
         ]:
             with self.subTest(entered=entered):
-                response = self.client.post(url, self.payload(csv, model_number=entered))
+                response = self.client.post(url, self.payload(csv, filename=entered + ".csv"))
                 self.assertEqual(response.status_code, 302)
                 item = ICSetting.objects.get(name=f"{expected}_5V")
                 self.assertEqual(item.model_number, expected)
                 item.delete()
         before = ICSetting.objects.count()
-        for entered in ("Rx", "cherger_", "Charger - ", ""):
-            response = self.client.post(url, self.payload(csv, model_number=entered))
-            self.assertIn("model_number", response.context["form"].errors)
+        for entered in ("Rx", "cherger_", "Charger - ", "_5V"):
+            response = self.client.post(url, self.payload(csv, filename=entered + ".csv"))
+            self.assertIn("file", response.context["form"].errors)
         self.assertEqual(ICSetting.objects.count(), before)
 
     def test_power_csv_and_row_limit(self):
@@ -371,7 +424,7 @@ class ICImportTests(TestCase):
         )
         response = self.client.post(
             reverse("ICmanage:ic-import", args=["charger"]),
-            self.payload(csv, model_number="Dense"),
+            self.payload(csv, filename="Dense.csv"),
         )
         self.assertEqual(response.status_code, 302)
         item = ICSetting.objects.get(name="Dense_5V")

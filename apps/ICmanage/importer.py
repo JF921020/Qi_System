@@ -4,6 +4,7 @@ import csv
 import io
 import math
 import re
+from contextlib import contextmanager
 from decimal import ROUND_HALF_UP, Decimal
 from itertools import pairwise
 from pathlib import Path
@@ -56,12 +57,17 @@ def displayed_efficiency(value, number_format, scale, label):
     return float(displayed * (1 if percent else scale))
 
 
-def read_curve(upload, worksheet, voltage):
+def read_upload(upload):
     if upload.size > MAX_BYTES:
         raise ValueError("檔案不可超過 5 MB。")
     content = upload.read(MAX_BYTES + 1)
     if len(content) > MAX_BYTES:
         raise ValueError("檔案不可超過 5 MB。")
+    return content
+
+
+def read_curve(upload, worksheet, voltage):
+    content = read_upload(upload)
     extension = Path(upload.name).suffix.lower()
     if extension == ".csv":
         try:
@@ -71,6 +77,24 @@ def read_curve(upload, worksheet, voltage):
             raise ValueError("CSV 必須為 UTF-8 編碼、逗號分隔。") from error
     if extension != ".xlsx":
         raise ValueError("僅支援 .xlsx 或 UTF-8 .csv。")
+    with open_workbook(content) as workbook:
+        if worksheet not in workbook.sheetnames:
+            raise ValueError("請選擇檔案內的工作表：" + "、".join(workbook.sheetnames)[:1000])
+        sheet = workbook[worksheet]
+        if sheet.max_column and sheet.max_column > 100:
+            raise ValueError("工作表不可超過 100 欄。")
+        return parse_rows(sheet.iter_rows(), voltage, excel=True)
+
+
+def read_worksheets(upload):
+    if Path(upload.name).suffix.lower() != ".xlsx":
+        raise ValueError("請選擇 .xlsx 檔案。")
+    with open_workbook(read_upload(upload)) as workbook:
+        return workbook.sheetnames
+
+
+@contextmanager
+def open_workbook(content):
     try:
         with ZipFile(io.BytesIO(content)) as archive:
             if len(archive.infolist()) > 1000 or sum(i.file_size for i in archive.infolist()) > 30 * 1024 * 1024:
@@ -83,12 +107,7 @@ def read_curve(upload, worksheet, voltage):
                         raise ValueError("不支援含 DTD 或實體宣告的 Excel。")
         workbook = load_workbook(io.BytesIO(content), read_only=True, data_only=False, keep_links=False)
         try:
-            if worksheet not in workbook.sheetnames:
-                raise ValueError("請填寫檔案內的工作表名稱：" + "、".join(workbook.sheetnames)[:1000])
-            sheet = workbook[worksheet]
-            if sheet.max_column and sheet.max_column > 100:
-                raise ValueError("工作表不可超過 100 欄。")
-            return parse_rows(sheet.iter_rows(), voltage, excel=True)
+            yield workbook
         finally:
             workbook.close()
     except (BadZipFile, InvalidFileException, KeyError, OSError) as error:

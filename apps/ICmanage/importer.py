@@ -172,6 +172,10 @@ def parse_rows(rows, voltage, excel=False):
         points.append([x, eta])
     if columns is None:
         raise ValueError("前 10 列找不到含單位的電流／功率及效率欄，請參考下方格式。")
+    if not points:
+        if skipped:
+            raise ValueError(f"{voltage}V 的效率欄全部空白，無法建立效率曲線。請提供有效效率資料；不會將空白當成 0 或自動估算。")
+        raise ValueError(f"找不到 {voltage}V 的資料列，請確認匯入電壓與工作表內容一致。")
     if len(points) < 3:
         raise ValueError("此電壓至少需要 3 筆有效效率資料；空白不會轉成 0。")
     points.sort(key=lambda point: point[0])

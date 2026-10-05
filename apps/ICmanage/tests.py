@@ -387,6 +387,46 @@ class ICImportTests(TestCase):
         self.assertIn("Charger_Test", item.source)
         self.assertEqual(item.model_number, "Test")
 
+    def test_linear_charger_sheets_import_5v_and_explain_missing_12v_data(self):
+        url = reverse("ICmanage:ic-import", args=["charger"])
+        for model, currents in [("BQ25180", (5, 500, 1000)), ("MAX17330", (350, 700, 1129))]:
+            workbook = Workbook()
+            workbook.remove(workbook.active)
+            for voltage in (5, 12):
+                sheet = workbook.create_sheet(f"Charger_{model}_{voltage}V")
+                sheet.append([f"Charger {model}：{voltage}V 每 1mA 效率表"])
+                sheet.append(["線性充電簡化模型，VBAT=3.8V；12V 效率留空。"])
+                sheet.append(["VIN (V)", "Iout (mA)", "VBAT (V)", "效率（小數）",
+                              "Pout (W)", "Pin 估算 (W)", "是否支援", "備註"])
+                for current in currents:
+                    sheet.append([voltage, current, 3.8, 0.76 if voltage == 5 else None,
+                                  current * 3.8 / 1000, current * voltage / 1000])
+                    sheet.cell(sheet.max_row, 4).number_format = "0.0000"
+            content = BytesIO()
+            workbook.save(content)
+
+            def payload(voltage, sheet_voltage, model=model, content=content):
+                return self.payload("", voltage=str(voltage), worksheet=f"Charger_{model}_{sheet_voltage}V",
+                                    file=SimpleUploadedFile("linear.xlsx", content.getvalue()))
+
+            with self.subTest(model=model):
+                response = self.client.post(url, payload(5, 5))
+                self.assertEqual(response.status_code, 302)
+                item = ICSetting.objects.get(name=f"{model}_5V")
+                self.assertEqual(item.axis, "ma")
+                self.assertEqual(item.points, [[current, 76] for current in currents])
+                self.assertIn("線性充電簡化模型", item.source)
+                before = ICSetting.objects.count()
+                for voltage, sheet_voltage, message in [
+                    (12, 12, "12V 的效率欄全部空白"),
+                    (5, 12, "找不到 5V 的資料列"),
+                    (12, 5, "找不到 12V 的資料列"),
+                ]:
+                    response = self.client.post(url, payload(voltage, sheet_voltage))
+                    self.assertContains(response, message)
+                    self.assertIn("file", response.context["form"].errors)
+                self.assertEqual(ICSetting.objects.count(), before)
+
     def test_filename_strips_only_category_prefix(self):
         url = reverse("ICmanage:ic-import", args=["rx"])
         page = self.client.get(url)

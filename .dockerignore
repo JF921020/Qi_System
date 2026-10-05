@@ -1,0 +1,10 @@
+*
+!requirements.txt
+!manage.py
+!config/
+!config/**
+!apps/
+!apps/**
+**/__pycache__/
+**/*.pyc
+**/.env*

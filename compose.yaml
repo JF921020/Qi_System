@@ -1,0 +1,48 @@
+name: qi-platform
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    environment:
+      DJANGO_DEBUG: "false"
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY in .env.docker}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?Set DJANGO_ALLOWED_HOSTS in .env.docker}
+      FORCE_SCRIPT_NAME: ""
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_NAME: qi_platform
+      DB_USER: qi_app
+      DB_PASSWORD: ${QI_DB_PASSWORD:?Set QI_DB_PASSWORD in .env.docker}
+    ports:
+      - "${QI_BIND_IP:-127.0.0.1}:${QI_HTTP_PORT:-8500}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: qi_platform
+      MARIADB_USER: qi_app
+      MARIADB_PASSWORD: ${QI_DB_PASSWORD:?Set QI_DB_PASSWORD in .env.docker}
+      MARIADB_ROOT_PASSWORD: ${QI_DB_ROOT_PASSWORD:?Set QI_DB_ROOT_PASSWORD in .env.docker}
+    volumes:
+      - qi-db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+volumes:
+  qi-db:

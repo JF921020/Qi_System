@@ -2,6 +2,8 @@
 
 ## SAIL1 校內 Docker 部署
 
+若要保留既有 Flask 並共用同一容器，請使用 [同容器 8501 與 SSH 通道操作步驟](deploy/SHARED_CONTAINER.md)。此方案不需操作主機 Docker。
+
 請參閱 [部署步驟與管理員需求](deploy/SAIL1.md)。專案已提供 Dockerfile 與 Compose；需由具備 SAIL1 主機 Docker 權限的人啟動。教學中的 SSH 帳號位於既有容器，不能假設可建立主機容器。預設僅綁定主機 localhost，校內入口需管理員設定。
 
 在 `Qi_System` 目錄執行：

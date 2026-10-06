@@ -191,4 +191,39 @@ assert.ok(Math.abs(elements.get('sysPower').value - 1.2) < 1e-12);
 assert.ok(loadContext.window._advisorSnapshot.rxIcEff > lowVoltageEfficiency);
 dispatch('chargeCurrentmA', 'input', '400');
 assert.ok(Math.abs(loadContext.window._advisorSnapshot.pOut - 1.6) < 1e-12);
-console.log('PASS: local calculation, current limits, inclusive endpoints, precision, input events, IC switching and recovery');
+// IC voltage follows the most recently selected named voltage condition.
+elements.set('batEnergyWh', {});
+for (const [id, name, value, voltage] of [
+    ['rxIcSelect', 'RX_5V', 'power_test', 5],
+    ['chargerIcSelect', 'CHARGER_12V', 'fixed_test', 12],
+    ['rxIcSelect', 'RX_5V', 'power_test', 5],
+    ['chargerIcSelect', 'Legacy IC', 'fixed_test', 5],
+    ['rxIcSelect', undefined, 'custom', 5],
+]) {
+    elements.get(id).selectedOptions = [{dataset: {icName: name}}];
+    dispatch(id, 'change', value);
+    assert.equal(vm.runInContext('state.batVoltage', loadContext), voltage);
+    assert.equal(elements.get('batVoltage').value, voltage);
+    assert.ok(Math.abs(loadContext.window._advisorSnapshot.pOut - voltage * 0.4) < 1e-12);
+    assert.equal(elements.get('batEnergyWh').value, (voltage * 2).toFixed(3) + ' Wh');
+}
+dispatch('batVoltage', 'input', '3.8');
+assert.equal(vm.runInContext('state.batVoltage', loadContext), 3.8, 'manual voltage remains editable');
+elements.get('rxIcSelect').selectedOptions = [{dataset: {icName: 'RX_5V'}}];
+elements.get('chargerIcSelect').selectedOptions = [{dataset: {icName: 'CHARGER_12V'}}];
+loadContext.initEventListeners();
+assert.equal(elements.get('batVoltage').value, 12, 'initial selection uses Charger voltage when both have conditions');
+dispatch('rxIcSelect', 'change', 'custom');
+dispatch('chargerIcSelect', 'change', 'custom');
+dispatch('batVoltage', 'input', '3.87654');
+dispatch('chargeCurrentA', 'input', '0.45678');
+assert.equal(elements.get('sysPower').value, 1.7707);
+assert.equal(loadContext.window._advisorSnapshot.pOut, 1.7707);
+dispatch('sysPower', 'input', '2.123456');
+const powerTarget = {value: '2.123456'};
+elements.get('sysPower').listeners.change({target: powerTarget});
+assert.equal(powerTarget.value, 2.1235);
+assert.equal(loadContext.window._advisorSnapshot.pOut, 2.1235);
+dispatch('sysPower', 'input', '0.00001');
+assert.equal(loadContext.window._advisorSnapshot.pOut, 0);
+console.log('PASS: local calculation, current limits, inclusive endpoints, precision, input events, IC voltage switching and power rounding');

@@ -1,14 +1,23 @@
 // ─── 6. 事件監聽 ───
 function syncChargingPower() {
-    state.sysPower = state.batVoltage * state.batCapacity / 1000 * state.batMaxC;
+    state.sysPower = Number((state.batVoltage * state.batCapacity / 1000 * state.batMaxC).toFixed(4));
     const powerInput = document.getElementById('sysPower');
     if (powerInput) powerInput.value = state.sysPower;
+}
+
+function syncIcVoltage(select) {
+    const match = select.selectedOptions?.[0]?.dataset.icName?.match(/_(5|12)V$/i);
+    if (!match) return;
+    state.batVoltage = Number(match[1]);
+    syncChargingPower();
+    syncUIInputs();
 }
 
 function initEventListeners() {
     ['rxIc', 'chargerIc'].forEach(field => {
         state[field + 'Select'] = document.getElementById(field + 'Select').value;
         document.getElementById(field + 'Eff').disabled = state[field + 'Select'] !== 'custom';
+        syncIcVoltage(document.getElementById(field + 'Select'));
     });
     const numInputs = ['batCapacity', 'batVoltage', 'batMaxC', 'sysPower', 'coilX', 'coilY', 'coilT', 'ncT', 'rxL', 'rxR', 'kVal', 'rxCoilDist', 'magCount', 'magW', 'magT', 'chargeCurrentmA', 'chargeCurrentA', 'targetChargeTimeHr', 'rxIcEff', 'chargerIcEff'];
     numInputs.forEach(id => {
@@ -54,6 +63,8 @@ function initEventListeners() {
                 state.batVoltage = val;
                 const elWh = document.getElementById('batEnergyWh');
                 if (elWh) elWh.value = ((val * state.batCapacity) / 1000).toFixed(3) + ' Wh';
+            } else if (id === 'sysPower') {
+                state.sysPower = Number(val.toFixed(4));
             } else {
                 state[id] = val;
             }
@@ -62,6 +73,10 @@ function initEventListeners() {
             }
             triggerCalc();
         });
+    });
+
+    document.getElementById('sysPower').addEventListener('change', e => {
+        e.target.value = state.sysPower;
     });
 
     // Commit on change so intermediate typing (e.g. "0." before "0.5") remains possible.
@@ -95,6 +110,7 @@ function initEventListeners() {
         if(el) el.addEventListener('change', e => {
             state[id] = ['magCoating', 'magGrade', 'susT'].includes(id) ? Number(e.target.value) : e.target.value;
             if (id === 'rxIcSelect' || id === 'chargerIcSelect') {
+                syncIcVoltage(el);
                 document.getElementById(id.replace('Select', 'Eff')).disabled = e.target.value !== 'custom';
                 const {min, max} = currentLimits(state);
                 if (Number.isFinite(max) && min <= max && state.batCapacity > 0) {

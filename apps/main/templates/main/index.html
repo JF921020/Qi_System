@@ -77,7 +77,7 @@
                         <!-- 2. 充電瓦特數 (Power, W) -->
                         <div class="form-group">
                             <label for="sysPower">2. 充電瓦特數 <span class="sub-note">(Power, W)</span>:</label>
-                            <input type="number" min="0" id="sysPower" class="form-control" value="2.5" step="0.1">
+                            <input type="number" min="0" id="sysPower" class="form-control" value="2.5" step="0.0001">
                         </div>
 
                         <!-- 3. 充電電壓 (Voltage, V) -->
@@ -152,7 +152,7 @@
                             <label for="rxIcSelect">型號選擇:</label>
 <select id="rxIcSelect" class="form-control">
                                 {% for ic in ic_settings %}{% if ic.kind == 'rx' %}
-                                <option value="{{ ic.code }}" {% if ic.code == 'cps4019' %}selected{% endif %}>{{ ic.name }} — {{ ic.get_mode_display }}{% if ic.provisional %}（暫定）{% endif %}</option>
+                                <option value="{{ ic.code }}" data-ic-name="{{ ic.name }}" {% if ic.code == 'cps4019' %}selected{% endif %}>{{ ic.name }} — {{ ic.get_mode_display }}{% if ic.provisional %}（暫定）{% endif %}</option>
                                 {% endif %}{% endfor %}
                                 <option value="custom">⚙️ 自訂效率（本次計算）</option>
                             </select>
@@ -177,7 +177,7 @@
                             <label for="chargerIcSelect">型號選擇:</label>
 <select id="chargerIcSelect" class="form-control">
                                 {% for ic in ic_settings %}{% if ic.kind == 'charger' %}
-                                <option value="{{ ic.code }}" {% if ic.code == 'mp2733' %}selected{% endif %}>{{ ic.name }} — {{ ic.get_mode_display }}{% if ic.provisional %}（暫定）{% endif %}</option>
+                                <option value="{{ ic.code }}" data-ic-name="{{ ic.name }}" {% if ic.code == 'mp2733' %}selected{% endif %}>{{ ic.name }} — {{ ic.get_mode_display }}{% if ic.provisional %}（暫定）{% endif %}</option>
                                 {% endif %}{% endfor %}
                                 <option value="custom">⚙️ 自訂效率（本次計算）</option>
                             </select>

@@ -62,6 +62,8 @@ class MainPageTests(TestCase):
         self.assertIsNone(re.search(r'<input(?=[^>]*type="number")(?![^>]*min="0")[^>]*>', response.content.decode()))
         self.assertIsNone(re.search(r'on\w+="[^"]*\bevent\b', response.content.decode()))
         self.assertNotContains(response, "{%")
+        for ic in response.context["ic_settings"]:
+            self.assertContains(response, f'data-ic-name="{ic.name}"')
 
     def test_form_controls_have_accessible_labels(self):
         html = self.client.get(reverse("main:index")).content.decode()

@@ -13,12 +13,36 @@ function syncIcVoltage(select) {
     syncUIInputs();
 }
 
+function resetCurrentForSelectedICs() {
+    let limits;
+    try { limits = currentLimits(state); } catch { return; }
+    const {min, max} = limits;
+    if (Number.isFinite(max) && min <= max && state.batCapacity > 0) {
+        state.batMaxC = min * 1000 / state.batCapacity;
+        syncChargingPower();
+        syncUIInputs();
+    }
+}
+
+function rememberICSelection(id) {
+    try { sessionStorage.setItem('qi-tool:' + id, state[id]); }
+    catch { /* 瀏覽器停用儲存時，仍可在本頁選擇及計算。 */ }
+}
+
 function initEventListeners() {
     ['rxIc', 'chargerIc'].forEach(field => {
-        state[field + 'Select'] = document.getElementById(field + 'Select').value;
+        const id = field + 'Select';
+        const select = document.getElementById(id);
+        try {
+            const saved = sessionStorage.getItem('qi-tool:' + id);
+            if (Array.from(select.options).some(option => option.value === saved)) select.value = saved;
+        } catch { /* 儲存不可用時沿用頁面預設選項。 */ }
+        state[id] = select.value;
+        rememberICSelection(id);
         document.getElementById(field + 'Eff').disabled = state[field + 'Select'] !== 'custom';
         syncIcVoltage(document.getElementById(field + 'Select'));
     });
+    resetCurrentForSelectedICs();
     const numInputs = ['batCapacity', 'batVoltage', 'batMaxC', 'sysPower', 'coilX', 'coilY', 'coilT', 'ncT', 'rxL', 'rxR', 'kVal', 'rxCoilDist', 'magCount', 'magW', 'magT', 'chargeCurrentmA', 'chargeCurrentA', 'targetChargeTimeHr', 'rxIcEff', 'chargerIcEff'];
     numInputs.forEach(id => {
         const el = document.getElementById(id);
@@ -111,13 +135,9 @@ function initEventListeners() {
             state[id] = ['magCoating', 'magGrade', 'susT'].includes(id) ? Number(e.target.value) : e.target.value;
             if (id === 'rxIcSelect' || id === 'chargerIcSelect') {
                 syncIcVoltage(el);
+                rememberICSelection(id);
                 document.getElementById(id.replace('Select', 'Eff')).disabled = e.target.value !== 'custom';
-                const {min, max} = currentLimits(state);
-                if (Number.isFinite(max) && min <= max && state.batCapacity > 0) {
-                    state.batMaxC = min * 1000 / state.batCapacity;
-                    syncChargingPower();
-                    syncUIInputs();
-                }
+                resetCurrentForSelectedICs();
             }
             if(id === 'caseMaterial' && e.target.value === 'aluminum') {
                 state.ncWrap = 'yes';

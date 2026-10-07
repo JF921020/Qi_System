@@ -226,4 +226,84 @@ assert.equal(powerTarget.value, 2.1235);
 assert.equal(loadContext.window._advisorSnapshot.pOut, 2.1235);
 dispatch('sysPower', 'input', '0.00001');
 assert.equal(loadContext.window._advisorSnapshot.pOut, 0);
-console.log('PASS: local calculation, current limits, inclusive endpoints, precision, input events, IC voltage switching and power rounding');
+// Returning from IC management starts with the actual remaining dropdown option.
+// Exercise the real page initializer with only one charger and no seeded MP2733.
+function initializePage(catalog, sessionStorage) {
+    const pageElements = new Map();
+    let initialize;
+    const page = vm.createContext({
+        sessionStorage,
+        document: {
+            getElementById(id) {
+                if (!pageElements.has(id)) pageElements.set(id, {
+                    value: id === 'rxIcSelect' ? Object.keys(catalog.rxFixed)[0] || 'custom'
+                        : id === 'chargerIcSelect' ? Object.keys(catalog.charger)[0] || 'custom' : '',
+                    options: (id === 'rxIcSelect' ? [...Object.keys(catalog.rxFixed), 'custom']
+                        : id === 'chargerIcSelect' ? [...Object.keys(catalog.charger), 'custom'] : []).map(value => ({value})),
+                    textContent: id === 'qi-curves' ? JSON.stringify(catalog) : '',
+                    style: {}, classList: {contains: () => false}, listeners: {},
+                    addEventListener(event, handler) { this.listeners[event] = handler; },
+                });
+                return pageElements.get(id);
+            },
+            addEventListener(event, callback) { initialize = callback; },
+            querySelectorAll: () => [],
+        },
+        window: {addEventListener() {}},
+        drawLayoutCanvases() {}, renderDiagAdvice() {},
+    });
+    for (const name of ['core', 'calculation', 'events', 'app']) {
+        vm.runInContext(fs.readFileSync(path.join(staticDir, `qi-tool-${name}.js`), 'utf8'), page);
+    }
+    page.switchDisplayTab = () => {};
+    initialize();
+    return {page, pageElements};
+}
+for (const [minimum, maximum] of [[0.5, 1], [0.1, 0.3]]) {
+    const catalog = {rx: {}, rxFixed: {}, chargerFixed: {}, charger: {
+        remaining: {axis: 'current', data: [[minimum, 80], [(minimum + maximum) / 2, 90], [maximum, 95]]},
+    }};
+    const {page, pageElements} = initializePage(catalog);
+    assert.equal(pageElements.get('calcStatus').textContent, '');
+    assert.equal(pageElements.get('chargeCurrentA').value, minimum);
+    assert.equal(pageElements.get('chargeCurrentmA').value, minimum * 1000);
+    assert.ok(Math.abs(page.window._advisorSnapshot.chargeCurrentA - minimum) < 1e-12);
+    assert.ok(Math.abs(page.window._advisorSnapshot.pOut - 3.7 * minimum) < 1e-12);
+    assert.ok(page.window._advisorSnapshot.coilEff > 0);
+    assert.match(pageElements.get('effBadgeLarge').innerText, /^\d+\.\d%$/);
+    assert.match(pageElements.get('hudCoilEff').innerText, /^\d+\.\d%$/);
+}
+// A new document after visiting management must restore both selected ICs.
+const savedSelections = new Map();
+const selectionStorage = {
+    getItem: key => savedSelections.get(key) ?? null,
+    setItem: (key, value) => savedSelections.set(key, value),
+};
+const selectionCatalog = {rx: {}, rxFixed: {rx_first: 85, rx_second: 95}, chargerFixed: {}, charger: {
+    first: {axis: 'current', data: [[0.1, 80], [0.5, 85], [1, 90]]},
+    second: {axis: 'current', data: [[0.5, 90], [0.8, 92], [1, 95]]},
+}};
+const initialPage = initializePage(selectionCatalog, selectionStorage);
+for (const [id, value] of [['rxIcSelect', 'rx_second'], ['chargerIcSelect', 'second']]) {
+    const select = initialPage.pageElements.get(id);
+    select.value = value;
+    select.listeners.change({target: select});
+}
+const returnedPage = initializePage(selectionCatalog, selectionStorage);
+assert.equal(returnedPage.pageElements.get('rxIcSelect').value, 'rx_second');
+assert.equal(returnedPage.pageElements.get('chargerIcSelect').value, 'second');
+assert.equal(returnedPage.page.window._advisorSnapshot.rxIcEff, 95);
+assert.equal(returnedPage.page.window._advisorSnapshot.chargerIcEff, 90);
+assert.equal(returnedPage.page.window._advisorSnapshot.chargeCurrentA, 0.5);
+delete selectionCatalog.charger.second;
+const afterDeletion = initializePage(selectionCatalog, selectionStorage);
+assert.equal(afterDeletion.pageElements.get('chargerIcSelect').value, 'first');
+assert.equal(afterDeletion.pageElements.get('rxIcSelect').value, 'rx_second');
+assert.equal(afterDeletion.pageElements.get('calcStatus').textContent, '');
+assert.equal(selectionStorage.getItem('qi-tool:chargerIcSelect'), 'first');
+const storageBlocked = initializePage(selectionCatalog, {
+    getItem() { throw new Error('Storage blocked'); },
+    setItem() { throw new Error('Storage blocked'); },
+});
+assert.equal(storageBlocked.pageElements.get('calcStatus').textContent, '');
+console.log('PASS: calculation, input events, single-charger initialization, IC selection restoration, deletion fallback and unavailable storage');

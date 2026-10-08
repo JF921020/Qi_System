@@ -31,7 +31,7 @@ def kind_title(kind):
 
 @require_GET
 def ic_home(request):
-    return render(request, "ICmanage/ic_home.html", {"title": "IC"})
+    return redirect("rx/")
 
 
 @require_GET

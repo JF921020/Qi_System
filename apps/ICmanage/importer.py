@@ -1,8 +1,7 @@
-"""Read a single, explicitly selected efficiency curve without saving uploads."""
+"""Read efficiency curves grouped by voltage without saving uploads."""
 
 import csv
 import io
-import math
 import re
 from contextlib import contextmanager
 from decimal import ROUND_HALF_UP, Decimal
@@ -29,6 +28,7 @@ X_COLUMNS = {
 EFF_COLUMNS = {"效率（小數）": 100, "efficiency_fraction": 100,
                "效率 (%)": 1, "效率(%)": 1, "efficiency_percent": 1}
 VOLT_COLUMNS = {"工作電壓 (V)", "VIN (V)", "voltage_v"}
+VBAT_COLUMNS = {"vbat", "vbat(v)", "vbat_v"}
 
 
 def numeric(value, label, maximum=1_000_000):
@@ -66,7 +66,7 @@ def read_upload(upload):
     return content
 
 
-def read_curve(upload, worksheet, voltage):
+def read_curve(upload, worksheet, voltage=None):
     content = read_upload(upload)
     extension = Path(upload.name).suffix.lower()
     if extension == ".csv":
@@ -120,9 +120,11 @@ def open_workbook(content):
 
 
 def parse_rows(rows, voltage, excel=False):
-    points, notes = [], []
+    groups, notes = {}, []
     columns = None
     skipped = 0
+    if voltage is not None:
+        voltage = number(float(voltage), "工作電壓", 0.000001)
     for row_number, row in enumerate(rows, 1):
         if row_number > MAX_ROWS:
             raise ValueError("工作表最多可有 10000 列。")
@@ -138,6 +140,8 @@ def parse_rows(rows, voltage, excel=False):
             xs = [i for i, label in enumerate(labels) if label in X_COLUMNS]
             es = [i for i, label in enumerate(labels) if label in EFF_COLUMNS]
             vs = [i for i, label in enumerate(labels) if label in VOLT_COLUMNS]
+            vbats = [i for i, label in enumerate(labels) if label.lower().replace(" ", "") in VBAT_COLUMNS]
+            vs = vbats or vs
             if xs and es:
                 # Linear-model sheets contain both Iout and Pout; prefer Iout.
                 currents = [i for i in xs if X_COLUMNS[labels[i]][0] in ("current", "ma")]
@@ -146,6 +150,9 @@ def parse_rows(rows, voltage, excel=False):
                     raise ValueError("欄位重複，無法判定電流／功率、效率或電壓欄。")
                 xi, ei = xs[0], es[0]
                 vi = vs[0] if vs else None
+                voltage_source = labels[vi] if vi is not None else "手動設定"
+                if vi is None and voltage is None:
+                    raise ValueError("檔案沒有電壓欄，請填寫匯入電壓（例如 3.8V）。")
                 axis, x_scale = X_COLUMNS[labels[xi]]
                 efficiency_scale = EFF_COLUMNS[labels[ei]]
                 columns = (xi, ei, vi)
@@ -157,8 +164,12 @@ def parse_rows(rows, voltage, excel=False):
         xi, ei, vi = columns
         if len(row) <= max(i for i in columns if i is not None):
             raise ValueError(f"第 {row_number} 列欄位不足。")
-        if vi is not None and numeric(row[vi], f"第 {row_number} 列電壓") != voltage:
-            continue
+        row_voltage = voltage
+        if vi is not None:
+            row_voltage = numeric(row[vi], f"第 {row_number} 列電壓")
+            if row_voltage <= 0:
+                raise ValueError(f"第 {row_number} 列電壓必須大於 0。")
+        points = groups.setdefault(row_voltage, [])
         if row[ei] is None or str(row[ei]).strip() == "":
             skipped += 1
             continue
@@ -172,29 +183,21 @@ def parse_rows(rows, voltage, excel=False):
         points.append([x, eta])
     if columns is None:
         raise ValueError("前 10 列找不到含單位的電流／功率及效率欄，請參考下方格式。")
-    if not points:
+    if not any(groups.values()):
         if skipped:
-            raise ValueError(f"{voltage}V 的效率欄全部空白，無法建立效率曲線。請提供有效效率資料；不會將空白當成 0 或自動估算。")
-        raise ValueError(f"找不到 {voltage}V 的資料列，請確認匯入電壓與工作表內容一致。")
-    if len(points) < 3:
-        raise ValueError("此電壓至少需要 3 筆有效效率資料；空白不會轉成 0。")
-    points.sort(key=lambda point: point[0])
-    if any(a[0] == b[0] for a, b in pairwise(points)):
-        raise ValueError("同一電壓有重複的電流／功率，請分開不同量測條件後匯入。")
-    original_count = len(points)
-    if original_count > 1000:
-        simplified = []
-        for point in points:
-            while len(simplified) >= 2:
-                a, b = simplified[-2:]
-                expected = a[1] + (point[1] - a[1]) * (b[0] - a[0]) / (point[0] - a[0])
-                if not math.isclose(b[1], expected, abs_tol=1e-10, rel_tol=0):
-                    break
-                simplified.pop()
-            simplified.append(point)
-        if len(simplified) == 2:
-            simplified.insert(1, points[len(points) // 2])
-        points = simplified
-        # MAX_ROWS already keeps the curve within the 10000-point storage limit.
-    return {"axis": axis, "points": points, "count": original_count,
+            raise ValueError("效率欄全部空白，無法建立效率曲線；不會將空白當成 0 或自動估算。")
+        raise ValueError("找不到有效資料列，請確認工作表內容。")
+    curves = []
+    for group_voltage, points in sorted(groups.items()):
+        if not points:
+            continue
+        if len(points) < 3:
+            raise ValueError(f"{group_voltage:g}V 至少需要 3 筆有效效率資料；本次未匯入任何設定。")
+        points.sort(key=lambda point: point[0])
+        if any(a[0] == b[0] for a, b in pairwise(points)):
+            raise ValueError(f"{group_voltage:g}V 有重複的電流／功率，請分開不同量測條件後匯入（同一 VBAT 下不同 VIN 也不可重複 X）。")
+        curves.append({"voltage": group_voltage, "points": points})
+    return {"axis": axis, "curves": curves, "voltage_source": voltage_source,
+            "count": sum(len(curve["points"]) for curve in curves),
+            "skipped_voltages": [value for value, points in sorted(groups.items()) if not points],
             "skipped": skipped, "notes": "；".join(notes)}

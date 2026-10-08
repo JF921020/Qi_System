@@ -283,11 +283,11 @@ class ICImportTests(TestCase):
         data = BytesIO()
         workbook.save(data)
         result = read_curve(SimpleUploadedFile("curve.xlsx", data.getvalue()), sheet.title, 5)
-        self.assertEqual(result["points"], [[100, 94.3], [101, 94.31], [102, 94.32], [103, 94.33], [104, 94.4]])
+        self.assertEqual(result["curves"][0]["points"], [[100, 94.3], [101, 94.31], [102, 94.32], [103, 94.33], [104, 94.4]])
         response = self.client.post(reverse("ICmanage:ic-import", args=["charger"]), self.payload(
             "", worksheet=sheet.title, file=SimpleUploadedFile("curve.xlsx", data.getvalue())))
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(ICSetting.objects.get(name="CPS5201_5V").points, result["points"])
+        self.assertEqual(ICSetting.objects.get(name="CPS5201_5V").points, result["curves"][0]["points"])
 
     def test_names_are_generated_from_filename_and_voltage(self):
         url = reverse("ICmanage:ic-import", args=["charger"])
@@ -316,7 +316,7 @@ class ICImportTests(TestCase):
         return {"voltage": "5", "source": "實測", "file": self.upload(text, filename), **kwargs}
 
     def test_csv_saved_and_available_without_overwriting(self):
-        text = "voltage_v,current_ma,efficiency_fraction\n5,1000,0.9\n12,100,0.5\n5,100,0\n5,300,\n5,500,0.8\n"
+        text = "voltage_v,current_ma,efficiency_fraction\n5,1000,0.9\n12,100,\n5,100,0\n5,300,\n5,500,0.8\n"
         for kind in ("rx", "charger"):
             url = reverse("ICmanage:ic-import", args=[kind])
             self.assertContains(self.client.get(reverse("ICmanage:ic-list", args=[kind])), url)
@@ -372,17 +372,18 @@ class ICImportTests(TestCase):
             return SimpleUploadedFile("curve.xlsx", data.getvalue())
         result = read_curve(upload(), "Charger_Test", 5)
         self.assertEqual(result["count"], 1501)
-        self.assertEqual(len(result["points"]), 3)
+        self.assertEqual(len(result["curves"][0]["points"]), 1501)
         self.assertEqual(result["axis"], "ma")
-        self.assertAlmostEqual(result["points"][1][0], 800)
+        self.assertEqual([point[0] for point in result["curves"][0]["points"]], list(range(100, 1601)))
         self.assertIn("理論值", result["notes"])
-        for sheet_name, voltage in [("missing", 5), ("Charger_Test", 12)]:
+        for sheet_name, voltage in [("missing", 5)]:
             with self.assertRaises(ValueError):
                 read_curve(upload(), sheet_name, voltage)
         url = reverse("ICmanage:ic-import", args=["charger"])
         response = self.client.post(url, self.payload("", file=upload(), worksheet="Charger_Test"))
         self.assertEqual(response.status_code, 302)
-        item = ICSetting.objects.get(name="Test_5V")
+        item = ICSetting.objects.get(name="Test_3.8V")
+        self.assertEqual(item.points, result["curves"][0]["points"])
         self.assertIn("理論值", item.source)
         self.assertIn("Charger_Test", item.source)
         self.assertEqual(item.model_number, "Test")
@@ -412,15 +413,14 @@ class ICImportTests(TestCase):
             with self.subTest(model=model):
                 response = self.client.post(url, payload(5, 5))
                 self.assertEqual(response.status_code, 302)
-                item = ICSetting.objects.get(name=f"{model}_5V")
+                item = ICSetting.objects.get(name=f"{model}_3.8V")
                 self.assertEqual(item.axis, "ma")
                 self.assertEqual(item.points, [[current, 76] for current in currents])
                 self.assertIn("線性充電簡化模型", item.source)
                 before = ICSetting.objects.count()
                 for voltage, sheet_voltage, message in [
-                    (12, 12, "12V 的效率欄全部空白"),
-                    (5, 12, "找不到 5V 的資料列"),
-                    (12, 5, "找不到 12V 的資料列"),
+                    (12, 12, "效率欄全部空白"),
+                    (5, 12, "效率欄全部空白"),
                 ]:
                     response = self.client.post(url, payload(voltage, sheet_voltage))
                     self.assertContains(response, message)
@@ -453,9 +453,17 @@ class ICImportTests(TestCase):
     def test_power_csv_and_row_limit(self):
         result = read_curve(self.upload("power_w,efficiency_percent\n0,0.5\n1,0.7\n2,0.9"), "", 5)
         self.assertEqual(result["axis"], "power")
-        self.assertEqual(result["points"][0], [0, 0.5])
+        self.assertEqual(result["curves"][0]["points"][0], [0, 0.5])
         with self.assertRaises(ValueError):
             read_curve(self.upload("current_a,efficiency_percent\n" + "1,80\n" * 10000), "", 5)
+
+    def test_collinear_csv_points_are_all_saved(self):
+        expected = [[i, 80] for i in range(1501)]
+        csv = "current_ma,efficiency_percent\n" + "\n".join(f"{x},{eta}" for x, eta in reversed(expected))
+        response = self.client.post(reverse("ICmanage:ic-import", args=["rx"]),
+                                    self.payload(csv, filename="Collinear.csv"))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(ICSetting.objects.get(name="Collinear_5V").points, expected)
 
     def test_dense_non_collinear_curve_import_save_and_calculation(self):
         # 9999 data rows plus the header reach the existing upload row limit.

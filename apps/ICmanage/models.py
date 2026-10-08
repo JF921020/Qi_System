@@ -8,7 +8,7 @@ from django.db import models
 def number(value, field, minimum=0, maximum=1_000_000):
     """Validate numeric IC settings before database writes."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(f"{field} 必須是數字")
+        raise ValueError(f"{field} 必須是數字")  # noqa: TRY004 - shared validation API uses ValueError
     if not minimum <= value <= maximum or not math.isfinite(value):
         raise ValueError(f"{field} 必須介於 {minimum} 與 {maximum}")
     return value
@@ -27,6 +27,7 @@ class ICSetting(models.Model):
     axis = models.CharField("查表軸向", max_length=7, choices=[("power", "輸出功率 (W)"), ("current", "充電電流 (A)"), ("ma", "充電電流 (mA)")], default="current")
     efficiency = models.FloatField("固定效率 (%)", null=True, blank=True)
     points = models.JSONField("曲線資料點", default=list, blank=True)
+    voltage = models.FloatField("工作電壓 (V)", null=True, blank=True)
     provisional = models.BooleanField("暫定數據（尚未驗證）", default=True)
     source = models.CharField("資料來源／量測條件", max_length=500, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -34,13 +35,26 @@ class ICSetting(models.Model):
     class Meta:
         db_table = "main_icsetting"
         ordering = ("kind", "name")
-        constraints = (models.UniqueConstraint(fields=["kind", "name"], name="unique_ic_setting_name"),)
+        constraints = (
+            models.UniqueConstraint(fields=["kind", "name"], name="unique_ic_setting_name"),
+            models.UniqueConstraint(fields=["kind", "model_number", "voltage"], name="unique_ic_model_voltage"),
+        )
 
     def __str__(self):
         return self.name
 
     def clean(self):
         super().clean()
+        if self.voltage is not None:
+            try:
+                number(self.voltage, "工作電壓", 0.000001)
+            except ValueError as error:
+                raise ValidationError({"voltage": str(error)}) from error
+        self.model_number = self.model_number.strip()
+        if self.voltage is not None and ICSetting.objects.filter(
+            kind=self.kind, model_number__iexact=self.model_number, voltage=self.voltage,
+        ).exclude(pk=self.pk).exists():
+            raise ValidationError("此類 IC 的型號與電壓已有設定，請編輯既有資料；不會覆蓋原資料。")
         if self.mode == "fixed":
             try:
                 number(self.efficiency, "固定效率", 0, 100)

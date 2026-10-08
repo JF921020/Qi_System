@@ -1,0 +1,19 @@
+.nav-sidebar { overflow-y: auto; }
+.account-area { margin-top: auto; padding: 12px; flex-shrink: 0; border-top: 1px solid #334155; }
+.account-menu { position: relative; margin: 0; }
+.account-menu > summary { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 8px; cursor: pointer; color: #f1f5f9; list-style: none; font-size: 14px; }
+.account-menu > summary::-webkit-details-marker { display: none; }
+.account-menu > summary:hover, .account-menu[open] > summary { background: #1e293b; }
+.account-avatar { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%; background: #334155; font-weight: 700; }
+.account-identity { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.account-identity small { display: block; color: #94a3b8; font-size: 12px; margin-top: 3px; }
+.account-panel { position: absolute; z-index: 50; bottom: calc(100% + 8px); left: 0; width: 100%; min-width: 195px; max-height: min(65vh, 420px); overflow-y: auto; padding: 8px; border: 1px solid #475569; border-radius: 10px; background: #1e293b; box-shadow: 0 8px 25px #0005; }
+.account-panel a, .account-panel button { display: block; width: 100%; padding: 10px 8px; border: 0; border-radius: 6px; background: transparent; color: #e2e8f0; text-align: left; font: inherit; font-size: 14px; text-decoration: none; cursor: pointer; }
+.account-panel a:hover, .account-panel button:hover, .account-panel a[aria-current] { background: #334155; color: white; }
+.account-group { margin: 8px 8px 4px; color: #94a3b8; font-size: 12px; font-weight: 600; }
+.account-help { margin: 8px; color: #cbd5e1; font-size: 13px; }
+.account-menu :focus-visible { outline: 3px solid #60a5fa; outline-offset: 2px; }
+@media (max-width: 760px) {
+    .account-area { width: 100%; }
+    .account-panel { position: static; width: 100%; min-width: 0; margin-top: 8px; }
+}

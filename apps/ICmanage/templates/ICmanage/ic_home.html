@@ -1,0 +1,5 @@
+{% extends 'ICmanage/ic_base.html' %}
+{% block content %}
+<div class="heading"><div><p class="eyebrow">COMPONENT LIBRARY</p><h1>IC 管理</h1><p>從左側工具欄選擇 RX IC 或 Charger IC，瀏覽效率資料、點位表與趨勢圖。</p></div></div>
+{% if not user.is_staff %}<p class="hint">匯入、編輯及刪除需以管理者帳號登入，可由「帳號設定」進入登入頁。</p>{% endif %}
+{% endblock %}

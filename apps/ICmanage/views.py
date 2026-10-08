@@ -30,6 +30,11 @@ def kind_title(kind):
 
 
 @require_GET
+def ic_home(request):
+    return render(request, "ICmanage/ic_home.html", {"title": "IC"})
+
+
+@require_GET
 def ic_list(request, kind):
     title = kind_title(kind)
     items = ICSetting.objects.filter(kind=kind)

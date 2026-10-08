@@ -36,7 +36,7 @@ class AccountAccessTests(TestCase):
                         else:
                             self.assertContains(page, url)
                 if account is None:
-                    self.assertContains(page, "登入</a>")
+                    self.assertContains(page, reverse("main:account-settings"))
         self.assertEqual(list(ICSetting.objects.values()), before)
 
     def test_login_next_validation_inactive_account_and_post_logout(self):

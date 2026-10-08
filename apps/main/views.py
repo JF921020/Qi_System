@@ -1,8 +1,14 @@
 from pathlib import Path
 
 from django.shortcuts import render
+from django.views.decorators.http import require_GET
 
 from apps.ICmanage.catalog import database_catalog
+
+
+@require_GET
+def account_settings(request):
+    return render(request, "main/account_settings.html", {"title": "帳號設定"})
 
 
 def index(request):

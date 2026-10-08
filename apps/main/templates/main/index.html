@@ -3,8 +3,11 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Qi無線充電預測工具_TWS (相容定位功能)</title>
     <link rel="stylesheet" href="{% static 'main/qi-tool.css' %}">
+    <link rel="stylesheet" href="{% static 'main/account-menu.css' %}?v=20261007-1">
+    <script src="{% static 'main/account-menu.js' %}" defer></script>
 </head>
 <body>
 {% csrf_token %}
@@ -19,13 +22,13 @@
         <li id="tab-qi2" class="nav-item tab-btn" onclick="switchDisplayTab('qi2')">🧲 相容Qi 2定位</li>
         <li id="tab-history" class="nav-item tab-btn" onclick="switchDisplayTab('history')">💾 歷史數據</li>
         <li id="tab-advisor" class="nav-item tab-btn" onclick="switchDisplayTab('advisor')">🧠 智慧反推</li>
-        <li><a class="nav-item" href="{% url 'ICmanage:ic-list' 'rx' %}" style="text-decoration:none;">🔌 IC 管理</a></li>
     </ul>
     <div class="nav-footer">
         <button type="button" class="btn-calc" onclick="triggerCalc()">▶ 立即計算</button>
         <p id="calcStatus" role="status" aria-live="polite" style="padding:0 12px;color:#cbd5e1;font-size:12px;"></p>
     </div>
     <div class="nav-spacer"></div>
+    {% include 'main/account_menu.html' %}
 </div>
 
 <!-- ─── 主工作區 ─── -->

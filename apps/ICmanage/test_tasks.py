@@ -228,3 +228,45 @@ class CurveWorkbenchTests(TestCase):
 
     def test_browser_logic(self):
         run(["node", str(Path(__file__).parent / "testdata/curve_workbench.cjs")], check=True)
+
+
+class AccountMenuTests(TestCase):
+    def test_role_links_on_both_pages(self):
+        accounts = [None,
+                    get_user_model().objects.create_user(username="reader"),
+                    get_user_model().objects.create_user(username="manager", is_staff=True),
+                    get_user_model().objects.create_user(username="admin", is_staff=True, is_superuser=True)]
+        for user in accounts:
+            self.client.logout()
+            if user:
+                self.client.force_login(user)
+            for url in (reverse("main:index"), reverse("ICmanage:ic-home"), reverse("main:account-settings"),
+                        reverse("ICmanage:ic-list", args=["rx"]), reverse("ICmanage:ic-list", args=["charger"])):
+                response = self.client.get(url, follow=True)
+                self.assertContains(response, 'class="account-menu"', count=1)
+                panel = response.content.decode().split('<nav class="account-panel"', 1)[1].split('</nav>', 1)[0]
+                self.assertEqual(panel.count('<a '), 2)
+                self.assertIn(reverse("ICmanage:ic-home"), panel)
+                self.assertIn(reverse("main:account-settings"), panel)
+                self.assertNotIn("登出", panel)
+                self.assertNotIn("RX IC", panel)
+            home = self.client.get(reverse("ICmanage:ic-home"), follow=True)
+            self.assertRedirects(home, "rx/")
+            self.assertEqual(home.context["kind"], "rx")
+            self.assertContains(home, 'aria-current="page">🔌 RX IC')
+            self.assertContains(home, reverse("ICmanage:ic-list", args=["rx"]))
+            self.assertContains(home, reverse("ICmanage:ic-list", args=["charger"]))
+            settings = self.client.get(reverse("main:account-settings"))
+            if user and user.is_superuser:
+                self.assertContains(settings, reverse("admin:auth_user_changelist"))
+            else:
+                self.assertNotContains(settings, reverse("admin:auth_user_changelist"))
+            if user:
+                self.assertContains(settings, f'action="{reverse("logout")}"')
+                self.assertContains(settings, 'name="csrfmiddlewaretoken"')
+            else:
+                self.assertContains(settings, "管理者登入")
+                self.assertNotContains(settings, "登出")
+
+    def test_keyboard_and_outside_click(self):
+        run(["node", str(Path(__file__).parent / "testdata/account_menu.cjs")], check=True)

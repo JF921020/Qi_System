@@ -2,8 +2,10 @@ from secrets import token_urlsafe
 from urllib.parse import parse_qs, urljoin, urlsplit
 
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import get_script_prefix, reverse, set_script_prefix
+
+from apps.accounts.testing import GOOGLE_SETTINGS, claims, google_login
 
 from .models import ICSetting
 
@@ -39,7 +41,8 @@ class AccountAccessTests(TestCase):
                     self.assertContains(page, reverse("main:account-settings"))
         self.assertEqual(list(ICSetting.objects.values()), before)
 
-    def test_login_next_validation_inactive_account_and_post_logout(self):
+    @override_settings(**GOOGLE_SETTINGS)
+    def test_google_login_next_validation_and_post_logout(self):
         login = reverse("login")
         calculation = reverse("main:index")
         page = self.client.get(calculation)
@@ -47,15 +50,11 @@ class AccountAccessTests(TestCase):
         self.assertNotContains(page, "登出")
         for field in ("chargeCurrentA", "chargeCurrentmA", "batVoltage"):
             self.assertContains(page, f'id="{field}"')
-        bad = self.client.post(login, {"username": self.manager.username, "password": token_urlsafe(24)})
-        self.assertTrue(bad.context["form"].errors)
-        non_staff = self.client.post(login, {"username": self.user.username, "password": self.password})
-        self.assertTrue(non_staff.context["form"].errors)
+        self.assertEqual(self.client.post(login, {"username": self.manager.username, "password": self.password}).status_code, 405)
+        self.assertNotIn("_auth_user_id", self.client.session)
         for next_url, target in (("/ics/rx/", "/ics/rx/"), ("https://example.org/", calculation)):
             self.client.logout()
-            response = self.client.post(login, {
-                "username": self.manager.username, "password": self.password, "next": next_url,
-            })
+            _, response, _ = google_login(self.client, claims(), next_url)
             self.assertRedirects(response, target)
         page = self.client.get(calculation)
         for field in ("chargeCurrentA", "chargeCurrentmA", "batVoltage"):
@@ -64,14 +63,9 @@ class AccountAccessTests(TestCase):
         self.assertRedirects(self.client.post(reverse("logout")), calculation)
         self.assertEqual(self.client.get(calculation).status_code, 200)
         self.assertEqual(self.client.get(reverse("ICmanage:ic-import", args=["rx"])).status_code, 302)
-        self.manager.is_active = False
-        self.manager.save()
-        response = self.client.post(login, {"username": self.manager.username, "password": self.password})
-        self.assertTrue(response.context["form"].errors)
 
-    def test_csrf_is_required_for_login_logout_and_manager_writes(self):
+    def test_csrf_is_required_for_logout_and_manager_writes(self):
         client = Client(enforce_csrf_checks=True)
-        self.assertEqual(client.post(reverse("login"), {}).status_code, 403)
         client.force_login(self.manager)
         item = ICSetting.objects.filter(kind="rx").first()
         urls = [reverse("logout"), reverse("ICmanage:ic-import", args=["rx"])]
@@ -80,6 +74,7 @@ class AccountAccessTests(TestCase):
         for url in urls:
             self.assertEqual(client.post(url, {}).status_code, 403)
 
+    @override_settings(**GOOGLE_SETTINGS)
     def test_auth_redirects_through_prefix_rewriting_proxy(self):
         prefix = "/proxy/8000"
         self.addCleanup(set_script_prefix, get_script_prefix())
@@ -102,10 +97,11 @@ class AccountAccessTests(TestCase):
             for next_url, expected in ((protected_next, "/ics/rx/import/"),
                                        (prefix + "/ics/rx/?q=test", "/ics/rx/?q=test"),
                                        ("", "/"), ("https://example.org/", "/")):
-                logged_in = self.client.post("/accounts/login/", {
-                    "username": self.manager.username, "password": self.password, "next": next_url,
-                })
-                follow_proxy(logged_in, "/accounts/login/", expected)
+                start, logged_in, _ = google_login(self.client, claims(), next_url, "/accounts/google/start/",
+                                                   "/accounts/google/callback/")
+                self.assertIn("redirect_uri=http%3A%2F%2Ftestserver%2Fproxy%2F8000%2Faccounts%2Fgoogle%2Fcallback%2F",
+                              start["Location"])
+                follow_proxy(logged_in, "/accounts/google/callback/", expected)
                 logged_out = self.client.post("/accounts/logout/")
                 follow_proxy(logged_out, "/accounts/logout/", "/")
                 self.assertNotIn("_auth_user_id", self.client.session)

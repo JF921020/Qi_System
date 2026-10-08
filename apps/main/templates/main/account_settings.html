@@ -5,15 +5,22 @@
 <div class="heading"><div><p class="eyebrow">ACCOUNT</p><h1>帳號設定</h1><p>查看目前登入狀態及帳號管理功能。</p></div></div>
 <section class="editor" aria-label="目前帳號">
 {% if user.is_authenticated %}
-    <h2>{{ user.username }}</h2>
+    <h2>{% if platform_user %}{{ platform_user.username }}{% else %}{{ user.username }}{% endif %}</h2>
+    {% if platform_user %}
+    <dl>
+        <dt>平台使用者 ID</dt><dd>{{ platform_user.id }}</dd>
+        <dt>信箱</dt><dd>{{ platform_user.email }}</dd>
+        <dt>登入方式</dt><dd>Google</dd>
+    </dl>
+    {% endif %}
     <p>角色：{% if user.is_superuser %}系統管理者{% elif user.is_staff %}管理者{% else %}檢視者{% endif %}</p>
     <div class="actions">
-        {% if user.is_superuser %}<a class="button" href="{% url 'admin:auth_user_changelist' %}">帳號管理</a>{% endif %}
+        {% if user.is_superuser %}<a class="button" href="{% url 'admin:accounts_platformuser_changelist' %}">帳號管理</a>{% endif %}
         <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">登出</button></form>
     </div>
 {% else %}
-    <p>目前尚未登入。管理者登入後可匯入、編輯及刪除 IC 資料。</p>
-    <a class="button" href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}">管理者登入</a>
+    <p>目前尚未登入。以 Google 帳號登入後可匯入、編輯及刪除 IC 資料。</p>
+    <a class="button" href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}">使用 Google 登入</a>
 {% endif %}
 </section>
 {% endblock %}

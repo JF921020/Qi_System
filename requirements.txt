@@ -8,3 +8,5 @@ djangorestframework-simplejwt
 gunicorn
 whitenoise
 openpyxl>=3.1.5,<4
+google-auth>=2.30,<3
+requests>=2.32,<3

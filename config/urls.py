@@ -16,15 +16,17 @@ Including another URLconf
 """
 
 from django.contrib import admin
-from django.contrib.admin.forms import AdminAuthenticationForm
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
+from apps.accounts import views as account_views
+
 urlpatterns = [
-    path("accounts/login/", auth_views.LoginView.as_view(
-        template_name="registration/login.html", authentication_form=AdminAuthenticationForm,
-    ), name="login"),
+    # Password login is retired: both the site and /admin/ sign in through Google.
+    path("accounts/login/", account_views.login_view, name="login"),
     path("accounts/logout/", auth_views.LogoutView.as_view(), name="logout"),
+    path("accounts/", include("apps.accounts.urls")),
+    path("admin/login/", account_views.admin_login_redirect),
     path("", include("apps.ICmanage.urls")),
     path("", include("apps.main.urls")),
     path("admin/", admin.site.urls),

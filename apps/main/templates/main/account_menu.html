@@ -1,8 +1,8 @@
 <div class="account-area">
     <details class="account-menu">
         <summary aria-label="帳號與管理選單">
-            <span class="account-avatar" aria-hidden="true">{% if user.is_authenticated %}{{ user.username|slice:':1'|upper }}{% else %}◎{% endif %}</span>
-            <span class="account-identity">{% if user.is_authenticated %}{{ user.username }}{% else %}訪客{% endif %}<small>{% if user.is_superuser %}系統管理者{% elif user.is_staff %}管理者{% elif user.is_authenticated %}檢視者{% else %}尚未登入{% endif %}</small></span>
+            <span class="account-avatar" aria-hidden="true">{% if user.is_authenticated %}{{ user.platform_user.username|default:user.username|slice:':1'|upper }}{% else %}◎{% endif %}</span>
+            <span class="account-identity">{% if user.is_authenticated %}{{ user.platform_user.username|default:user.username }}{% else %}訪客{% endif %}<small>{% if user.is_superuser %}系統管理者{% elif user.is_staff %}管理者{% elif user.is_authenticated %}檢視者{% else %}尚未登入{% endif %}</small></span>
             <span aria-hidden="true">⌃</span>
         </summary>
         <nav class="account-panel" aria-label="帳號與管理入口">

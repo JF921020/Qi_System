@@ -258,14 +258,14 @@ class AccountMenuTests(TestCase):
             self.assertContains(home, reverse("ICmanage:ic-list", args=["charger"]))
             settings = self.client.get(reverse("main:account-settings"))
             if user and user.is_superuser:
-                self.assertContains(settings, reverse("admin:auth_user_changelist"))
+                self.assertContains(settings, reverse("admin:accounts_platformuser_changelist"))
             else:
-                self.assertNotContains(settings, reverse("admin:auth_user_changelist"))
+                self.assertNotContains(settings, reverse("admin:accounts_platformuser_changelist"))
             if user:
                 self.assertContains(settings, f'action="{reverse("logout")}"')
                 self.assertContains(settings, 'name="csrfmiddlewaretoken"')
             else:
-                self.assertContains(settings, "管理者登入")
+                self.assertContains(settings, "使用 Google 登入")
                 self.assertNotContains(settings, "登出")
 
     def test_keyboard_and_outside_click(self):

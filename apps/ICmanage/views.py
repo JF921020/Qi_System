@@ -10,6 +10,8 @@ from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods
 
+from apps.accounts.models import platform_user_of
+
 from .forms import ICImportForm, ICSettingForm
 from .importer import read_worksheets
 from .models import ICSetting
@@ -55,7 +57,7 @@ def ic_home(request):
 @require_GET
 def ic_list(request, kind):
     title = kind_title(kind)
-    items = ICSetting.objects.filter(kind=kind)
+    items = ICSetting.objects.filter(kind=kind).select_related("updated_by")
     query = request.GET.get("q", "").strip()[:120]
     # Keep the full list available so clearing a live search restores every row.
     return render(request, "ICmanage/ic_list.html", {"kind": kind, "title": title, "items": items, "query": query})
@@ -77,6 +79,8 @@ def ic_import(request, kind):
                         request.FILES if request.method == "POST" else None,
                         instance=ICSetting(kind=kind))
     if request.method == "POST" and form.is_valid():
+        for item in form.settings:
+            item.updated_by = platform_user_of(request.user)
         try:
             saved = form.save()
             result = form.result
@@ -105,6 +109,7 @@ def ic_edit(request, kind, pk):
                 if ICSetting.objects.filter(kind=kind, name=saved.name).exclude(pk=saved.pk).exists():
                     form.add_error("name", "此類 IC 已有同名設定，請使用其他名稱。")
                 else:
+                    saved.updated_by = platform_user_of(request.user)
                     saved.save()
                     messages.success(request, "IC 設定已儲存；計算頁重新載入後即可選用。")
                     # Relative locations preserve the proxy mount without double-prefixing.

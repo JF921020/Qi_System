@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "apps.accounts.apps.AccountsConfig",
     "apps.main.apps.MainConfig",
     "apps.ICmanage.apps.ICManageConfig",
 ]
@@ -91,6 +92,22 @@ WSGI_APPLICATION = "config.wsgi.application"
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "main:index"
 LOGOUT_REDIRECT_URL = "main:index"
+
+
+def env_list(name):
+    return [item.strip().lower() for item in os.getenv(name, "").split(",") if item.strip()]
+
+
+# Google sign-in replaces password login; see docs/google-login.md.
+GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
+GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
+# Leave blank to derive it from the request; set it when a proxy changes host or scheme.
+GOOGLE_OAUTH_REDIRECT_URI = os.getenv("GOOGLE_OAUTH_REDIRECT_URI", "")
+GOOGLE_ALLOWED_DOMAINS = env_list("GOOGLE_ALLOWED_DOMAINS")  # blank = any verified Google account
+GOOGLE_DEFAULT_ROLE = os.getenv("GOOGLE_DEFAULT_ROLE", "admin")
+if GOOGLE_DEFAULT_ROLE not in ("admin", "viewer"):
+    raise ImproperlyConfigured("GOOGLE_DEFAULT_ROLE must be admin or viewer.")
+PLATFORM_SUPERUSER_EMAILS = env_list("PLATFORM_SUPERUSER_EMAILS")
 
 
 # Database

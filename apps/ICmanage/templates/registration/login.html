@@ -1,17 +1,16 @@
 {% extends 'ICmanage/ic_base.html' %}
+{% block page_title %}登入{% endblock %}
+{% block breadcrumb %}登入{% endblock %}
 {% block content %}
 <div class="editor">
-    <h1>管理者登入</h1>
-    <p>一般使用不需帳號或登入，即可調整電流與電壓並即時查看效能計算。管理者登入後可匯入、編輯及刪除 Rx IC／Charger IC 效率資料。</p>
-    <form method="post" action="{% url 'login' %}">
-        {% csrf_token %}
-        {{ form.non_field_errors }}
-        {% for field in form %}
-        <div class="field">{{ field.label_tag }}{{ field }}{{ field.errors }}</div>
-        {% endfor %}
-        <input type="hidden" name="next" value="{{ next }}">
-        <button type="submit">登入</button>
-    </form>
-    <p class="hint">僅供啟用「工作人員狀態」的管理者帳號登入。</p>
+    <h1>登入</h1>
+    <p>一般使用不需帳號或登入，即可調整電流與電壓並即時查看效能計算。以 Google 帳號登入後即建立平台帳號，可匯入、編輯及刪除 Rx IC／Charger IC 效率資料。</p>
+    {% if error %}<p class="errorlist" role="alert">{{ error }}</p>{% endif %}
+    {% if configured %}
+    <p><a class="button" href="{% url 'accounts:google-start' %}{% if next %}?next={{ next|urlencode }}{% endif %}">使用 Google 帳號登入</a></p>
+    {% else %}
+    <p class="hint">系統尚未設定 Google OAuth 用戶端（GOOGLE_OAUTH_CLIENT_ID／GOOGLE_OAUTH_CLIENT_SECRET），暫時無法登入。</p>
+    {% endif %}
+    <p class="hint">本平台不再使用帳號密碼；首次登入會以 Google 信箱建立平台使用者。</p>
 </div>
 {% endblock %}

@@ -31,6 +31,8 @@ class ICSetting(models.Model):
     provisional = models.BooleanField("暫定數據（尚未驗證）", default=True)
     source = models.CharField("資料來源／量測條件", max_length=500, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey("accounts.PlatformUser", verbose_name="最後修改者", null=True, blank=True,
+                                   editable=False, on_delete=models.SET_NULL, related_name="ic_settings")
 
     class Meta:
         db_table = "main_icsetting"

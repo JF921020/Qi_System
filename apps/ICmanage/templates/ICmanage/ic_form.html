@@ -1,4 +1,5 @@
 {% extends 'ICmanage/ic_base.html' %}
+{% load static %}
 {% block content %}
 <p class="eyebrow">{{ title }} / NAMED SETTINGS</p>
 <h1>編輯 {{ title }} 設定</h1>
@@ -6,7 +7,11 @@
 <form class="editor" method="post">
     {% csrf_token %}
     {{ form.non_field_errors }}
-    {% for field in form %}<div class="field">{{ field.label_tag }}{{ field }}{{ field.errors }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}</div>{% endfor %}
+    {% for field in form %}<div class="field">
+        {% if field.name == 'points' %}{% include 'ICmanage/curve_workbench.html' with editable=True %}{% endif %}
+        <div {% if field.name == 'points' %}data-points-json{% endif %}>{{ field.label_tag }}{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}</div>{{ field.errors }}
+    </div>{% endfor %}
     <div class="actions"><button type="submit">儲存設定</button><a href="{% url 'ICmanage:ic-list' kind %}">取消</a></div>
 </form>
+<script src="{% static 'ICmanage/curve-workbench.js' %}" defer></script>
 {% endblock %}

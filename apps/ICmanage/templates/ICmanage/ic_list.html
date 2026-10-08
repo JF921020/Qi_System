@@ -22,11 +22,12 @@
 <tbody>{% for item in items %}<tr data-ic-row data-name="{{ item.name }}" data-updated="{{ item.updated_at|date:'U' }}">
     <td data-sort="{{ item.name }} {{ item.model_number }}"><strong>{{ item.name }}</strong><small>{{ item.model_number }}</small></td>
     <td data-sort="{{ item.get_mode_display }} {% if item.mode == 'fixed' %}{{ item.efficiency|floatformat:'1' }}%{% else %}{{ item.get_axis_display }} · {{ item.points|length }} 點{% endif %}">{{ item.get_mode_display }}<small>{% if item.mode == 'fixed' %}{{ item.efficiency|floatformat:"1" }}%{% else %}{{ item.get_axis_display }} · {{ item.points|length }} 點{% endif %}</small></td>
-    <td data-sort="{{ item.source }}">{{ item.source|default:'—' }}{% if item.mode == 'curve' %}<details><summary>查看曲線資料</summary><pre>{{ item.points }}</pre></details>{% endif %}</td>
+    <td data-sort="{{ item.source }} {{ item.voltage|default_if_none:'' }}">{{ item.source|default:'—' }}{% if item.mode == 'curve' %}<details><summary>查看曲線資料與趨勢圖</summary>{% include 'ICmanage/curve_workbench.html' %}</details>{% endif %}</td>
     <td><time datetime="{{ item.updated_at|date:'c' }}">{{ item.updated_at|date:'Y-m-d H:i:s' }}</time></td>
     <td>{% if user.is_staff %}<a href="{% url 'ICmanage:ic-edit' kind item.pk %}">編輯</a> <a class="danger" href="{% url 'ICmanage:ic-delete' kind item.pk %}">刪除</a>{% else %}僅供檢視{% endif %}</td>
 </tr>{% endfor %}<tr id="ic-empty" {% if items %}hidden{% endif %}><td colspan="5">尚無 IC 設定，請匯入效率資料。</td></tr></tbody>
 </table></div>
 <p class="hint">曲線以線性插值計算；超過取樣範圍使用端點效率，計算結果會顯示提示。</p>
 <script src="{% static 'ICmanage/ic-list.js' %}" defer></script>
+<script src="{% static 'ICmanage/curve-workbench.js' %}" defer></script>
 {% endblock %}

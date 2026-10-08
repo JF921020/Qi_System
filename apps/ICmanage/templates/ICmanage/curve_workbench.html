@@ -1,0 +1,21 @@
+{% load l10n %}
+<section class="curve-workbench" data-editable="{% if editable %}true{% else %}false{% endif %}" data-axis="{{ item.get_axis_display }}" data-model="{{ item.model_number }}" data-voltage="{{ item.voltage|default_if_none:''|unlocalize }}">
+    {% if not editable %}{{ item.points|json_script:item.code }}{% endif %}
+    <h3>效率曲線：<span data-title>{{ item.model_number }} · {% if item.voltage != None %}{{ item.voltage|unlocalize }} V{% else %}電壓未提供{% endif %}</span></h3>
+    <div class="curve-controls" hidden>
+        <label>搜尋點位 <input data-query type="search" placeholder="X 或效率數值"></label>
+        <label>排序 <select data-sort><option value="0-asc">X：小到大</option><option value="0-desc">X：大到小</option><option value="1-asc">效率：低到高</option><option value="1-desc">效率：高到低</option></select></label>
+        <label>每頁 <select data-size><option>10</option><option selected>25</option><option>50</option><option>100</option></select> 筆</label>
+        {% if editable %}<button type="button" data-add>新增資料點</button>{% endif %}
+    </div>
+    <p class="hint" data-chart-note role="status"></p>
+    <svg class="curve-chart" viewBox="0 0 640 280" role="img" aria-label="效率曲線趨勢圖" hidden></svg>
+    <div class="curve-scroll" tabindex="0" role="region" aria-label="效率曲線點位表">
+        <table class="curve-table"><caption>點位資料表</caption>
+            <thead><tr><th scope="col">序號</th><th scope="col" data-axis-heading>{{ item.get_axis_display }}</th><th scope="col">效率 (%)</th>{% if editable %}<th scope="col">操作</th>{% endif %}</tr></thead>
+            <tbody>{% if not editable %}{% for point in item.points %}<tr><td>{{ forloop.counter }}</td><td>{{ point.0|unlocalize }}</td><td>{{ point.1|unlocalize }}</td></tr>{% endfor %}{% endif %}</tbody>
+        </table>
+    </div>
+    <div class="curve-controls" hidden><button type="button" data-prev>上一頁</button><span data-status role="status" aria-live="polite"></span><button type="button" data-next>下一頁</button></div>
+    <noscript><p class="hint">趨勢圖與表格互動需要 JavaScript；編輯可使用原始資料欄位。</p></noscript>
+</section>

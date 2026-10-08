@@ -48,6 +48,21 @@ small { display: block; color: var(--text-muted); margin-top: 6px; line-height: 
 details { margin-top: 10px; }
 summary { cursor: pointer; color: var(--primary); }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.curve-workbench { margin-top: 16px; min-width: 300px; }
+.curve-workbench [hidden] { display: none; }
+.curve-workbench h3 { font-size: 15px; overflow-wrap: anywhere; }
+.curve-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; font-size: 13px; }
+.curve-controls label { margin: 0; }
+.curve-controls input { max-width: 150px; }
+.curve-controls button { padding: 6px 10px; }
+.curve-controls button:disabled { opacity: .45; cursor: default; }
+.curve-chart { display: block; width: 100%; min-width: 300px; background: white; border: 1px solid var(--border-color); }
+.curve-scroll { max-height: 440px; overflow: auto; border: 1px solid var(--border-color); border-radius: 6px; }
+.curve-table { min-width: 300px; font-variant-numeric: tabular-nums; }
+.curve-table caption { padding: 10px; text-align: left; font-weight: 600; }
+.curve-table th { position: sticky; top: 0; }
+.curve-table td, .curve-table th { padding: 8px 10px; text-align: right; }
+.curve-table input { min-width: 110px; }
 @media (max-width: 760px) {
     .ic-manager { display: block; height: auto; min-height: 100vh; overflow: auto; }
     .nav-sidebar { width: 100%; }

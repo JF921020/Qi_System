@@ -1,12 +1,15 @@
+import json
 from importlib import import_module
 from io import BytesIO
+from pathlib import Path
+from subprocess import run
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.messages import get_messages
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
 from openpyxl import Workbook
@@ -177,3 +180,51 @@ class VoltageImportTests(TestCase):
         self.assertFalse(old.null)
         self.assertTrue(new.null)
         schema.execute.assert_not_called()
+
+
+class CurveWorkbenchTests(TestCase):
+    def setUp(self):
+        self.client.force_login(get_user_model().objects.create_user(username="curve-manager", is_staff=True))
+        self.item = ICSetting.objects.create(kind="rx", name="曲線測試", model_number="CURVE", voltage=3.8,
+                                             axis="ma", points=[[0, 0], [100, 85.1234], [200, 90]])
+
+    def payload(self, **overrides):
+        return {"name": self.item.name, "model_number": self.item.model_number, "voltage": "3.8",
+                "mode": "curve", "axis": "ma", "points": json.dumps(self.item.points), **overrides}
+
+    def test_table_chart_render_save_and_invalid_draft(self):
+        listing = self.client.get(reverse("ICmanage:ic-list", args=["rx"]))
+        self.assertContains(listing, 'class="curve-table"')
+        self.assertContains(listing, 'class="curve-chart"')
+        url = reverse("ICmanage:ic-edit", args=["rx", self.item.pk])
+        self.assertContains(self.client.get(url), 'data-editable="true"')
+        self.assertEqual(self.client.post(url, self.payload(points="[[0,0],[100,88.765432],[200,95]]")).status_code, 302)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.points[1][1], 88.765432)
+        draft = "[[0,0],[100,null],[200,95]]"
+        response = self.client.post(url, self.payload(points=draft))
+        self.assertTrue(response.context["form"].errors)
+        self.assertEqual(json.loads(response.context["form"]["points"].value()), json.loads(draft))
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.points[1][1], 88.765432)
+
+    def test_duplicate_model_voltage_edit_import_and_constraint(self):
+        other = ICSetting.objects.create(kind="rx", name="不同名稱", model_number="OTHER", voltage=3.8,
+                                         points=self.item.points)
+        url = reverse("ICmanage:ic-edit", args=["rx", other.pk])
+        response = self.client.post(url, self.payload(name=other.name, model_number="curve"))
+        self.assertContains(response, "型號與電壓已有設定")
+        other.refresh_from_db()
+        self.assertEqual(other.model_number, "OTHER")
+        text = b"current_ma,efficiency_percent\n0,80\n100,85\n200,90"
+        response = self.client.post(reverse("ICmanage:ic-import", args=["rx"]), {
+            "voltage": "3.8", "file": SimpleUploadedFile("Rx_CURVE.csv", text),
+        })
+        self.assertContains(response, "型號與電壓已有設定")
+        self.assertEqual(self.client.post(url, self.payload(name=other.name, voltage="5")).status_code, 302)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            ICSetting.objects.create(kind="rx", name="第三個名字", model_number="CURVE", voltage=3.8, points=self.item.points)
+        ICSetting.objects.create(kind="charger", name="相同型號不同類別", model_number="CURVE", voltage=3.8, points=self.item.points)
+
+    def test_browser_logic(self):
+        run(["node", str(Path(__file__).parent / "testdata/curve_workbench.cjs")], check=True)

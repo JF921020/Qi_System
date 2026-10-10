@@ -17,8 +17,8 @@
         const chart = find('svg');
         let page = 0;
         const axisLabel = () => editable ? form.elements.namedItem('axis').selectedOptions[0].textContent : section.dataset.axis;
-        const selected = () => points.map((point, index) => ({point, index})).filter(({point}) =>
-            point.some(value => String(value ?? '').includes(query.value.trim())));
+        const selected = () => points.map((point, index) => ({point, index})).filter(({point, index}) =>
+            [index + 1, point[1]].some(value => String(value ?? '').includes(query.value.trim())));
         function svg(tag, attrs, text) {
             const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
             Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, value));
@@ -72,7 +72,6 @@
             body.replaceChildren();
             matches.slice(page * Number(size.value), (page + 1) * Number(size.value)).forEach(({point, index}) => {
                 const row = body.insertRow();
-                row.insertCell().textContent = index + 1;
                 point.forEach((value, columnIndex) => {
                     const cell = row.insertCell();
                     if (!editable) { cell.textContent = value; return; }
@@ -95,7 +94,7 @@
             });
             find('[data-axis-heading]').textContent = axisLabel();
             Array.from(find('thead tr').cells).forEach((heading, index) => {
-                heading.setAttribute('aria-sort', index === Number(column) + 1 ? (direction === 'asc' ? 'ascending' : 'descending') : 'none');
+                heading.setAttribute('aria-sort', index === Number(column) ? (direction === 'asc' ? 'ascending' : 'descending') : 'none');
             });
             find('[data-status]').textContent = matches.length ? `第 ${page + 1} / ${pages} 頁 · ${matches.length} / ${points.length} 筆` : '沒有符合的資料點。';
             find('[data-prev]').disabled = page === 0;

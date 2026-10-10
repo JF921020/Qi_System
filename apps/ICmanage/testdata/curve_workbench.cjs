@@ -12,7 +12,7 @@ class Element {
     replaceChildren() { this.children = []; }
     insertRow() { return this.appendChild(new Element()); }
     insertCell() { return this.appendChild(new Element()); }
-    querySelector() { return this.children[0]?.children[1]?.children[0]; }
+    querySelector() { return this.children[0]?.children[0]?.children[0]; }
     focus() {}
     get cells() { return this.children; }
     get valueAsNumber() { return this.value === '' ? NaN : Number(this.value); }
@@ -24,7 +24,7 @@ function setup(values, editable = true) {
     controls['[data-sort]'].value = '0-asc'; controls['[data-size]'].value = '25';
     controls.tbody = new Element(); controls.svg = new Element(); controls.script = {textContent: JSON.stringify(values)};
     controls['thead tr'] = new Element();
-    for (let i = 0; i < 4; i++) controls['thead tr'].insertCell();
+    for (let i = 0; i < (editable ? 3 : 2); i++) controls['thead tr'].insertCell();
     const original = new Element();
     const form = new Element();
     form.elements = {namedItem: name => fields[name]}; form.querySelector = () => original;
@@ -38,7 +38,7 @@ function setup(values, editable = true) {
     return {controls, fields, section, original,
         change(key, value, event = 'change') { controls[`[data-${key}]`].value = value; controls[`[data-${key}]`].fire(event); },
         click(key) { controls[`[data-${key}]`].fire('click'); },
-        edit(row, column, value) { const input = controls.tbody.children[row].cells[column + 1].children[0]; input.value = value; input.fire('input'); },
+        edit(row, column, value) { const input = controls.tbody.children[row].cells[column].children[0]; input.value = value; input.fire('input'); },
         save() { form.fire('submit'); return JSON.parse(fields.points.value); },
         path() { return controls.svg.children.find(node => node.tag === 'polyline')?.points; },
     };
@@ -49,14 +49,15 @@ assert.equal(page.controls.tbody.children.length, 25);
 const firstPath = page.path();
 page.edit(0, 1, '87.123456'); assert.notEqual(page.path(), firstPath, 'graph updates immediately');
 page.click('next'); page.edit(0, 1, '91');
-page.change('query', '59', 'input'); page.edit(0, 1, '99');
+page.change('query', '60', 'input'); page.edit(0, 1, '99');
 assert.equal(page.path().split(' ').length, 1, 'filter applies to graph and table');
 assert.equal(page.save().length, 60, 'filter and pagination never discard hidden points');
 assert.equal(page.save()[0][1], 87.123456); assert.equal(page.save()[25][1], 91); assert.equal(page.save()[59][1], 99);
 page.click('add'); assert.equal(page.controls.svg.hidden, true, 'blank numbers are not plotted as zero');
 page.edit(0, 0, '65'); page.edit(0, 1, '95'); assert.deepEqual(page.save().at(-1), [65, 95]);
-page.controls.tbody.children[0].cells[3].children[0].fire('click'); assert.equal(page.save().length, 60);
-page.change('sort', '1-desc'); assert.equal(page.controls.tbody.children[0].cells[2].children[0].value, 99);
+page.controls.tbody.children[0].cells[2].children[0].fire('click'); assert.equal(page.save().length, 60);
+page.change('sort', '1-desc'); assert.equal(page.controls.tbody.children[0].cells[1].children[0].value, 99);
+assert.equal(page.controls['thead tr'].cells[1]['aria-sort'], 'descending');
 page.fields.voltage.value = '5'; page.fields.voltage.fire('input'); assert.equal(page.controls['[data-title]'].textContent, 'TEST · 5 V');
 page.fields.mode.value = 'fixed'; page.fields.mode.fire('change'); assert.equal(page.section.hidden, true); assert.deepEqual(page.save(), []);
 const dense = setup(Array.from({length: 10000}, (_, i) => [i, 80 + i % 2]), false);
@@ -64,5 +65,14 @@ assert.equal(dense.path().split(' ').length, 10000, 'dense line retains every da
 assert.equal(dense.controls.tbody.children.length, 25);
 dense.change('query', 'missing', 'input'); assert.equal(dense.controls.svg.hidden, true);
 const zeros = setup([[0, 0], [1, 0], [2, 0]], false); assert.equal(zeros.controls.svg.hidden, false);
+const search = setup([[321, 87], [654, 92], [987, 76]], false);
+assert.equal(search.controls.tbody.children[0].cells.length, 2, 'display only current and efficiency');
+assert.equal(search.controls['thead tr'].cells[0]['aria-sort'], 'ascending');
+search.change('query', '2', 'input');
+assert.deepEqual(search.controls.tbody.children.map(row => row.cells[0].textContent), [654], 'search matches one-based sequence instead of X');
+search.change('query', '321', 'input');
+assert.equal(search.controls.tbody.children.length, 0, 'X values are not searched');
+search.change('query', '76', 'input');
+assert.equal(search.controls.tbody.children[0].cells[0].textContent, 987, 'efficiency remains searchable');
 const malformed = setup('not points'); assert.notEqual(malformed.original.hidden, true);
 console.log('Curve workbench: edit/save precision, pagination, filtering, chart synchronization, dense curves, zero and invalid values passed.');

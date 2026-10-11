@@ -101,16 +101,62 @@ class VoltageImportTests(TestCase):
             self.assertTrue(all(item.points[0] == [0, 0] for item in items))
             items.delete()
 
-    def test_batch_conflict_does_not_partially_import(self):
-        existing = ICSetting.objects.create(kind="rx", name="Already", model_number="Batch", voltage=4.2,
+    def test_batch_adds_only_missing_voltages_and_preserves_existing_fields(self):
+        existing = ICSetting.objects.create(kind="rx", name="Already", model_number="bAtCh", voltage=4.2,
                                             points=[[0, 70], [100, 75], [200, 80]])
+        original = ICSetting.objects.filter(pk=existing.pk).values().get()
         before = ICSetting.objects.count()
         response = self.batch_upload()
-        self.assertContains(response, "Batch_4.2V")
-        self.assertContains(response, "型號與電壓已有設定")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(ICSetting.objects.count(), before + 1)
+        self.assertEqual(ICSetting.objects.get(kind="rx", model_number="Batch", voltage=3.8).points,
+                         [[0, 80], [100, 81], [200, 82]])
+        self.assertEqual(ICSetting.objects.filter(pk=existing.pk).values().get(), original)
+        messages = ' '.join(str(message) for message in get_messages(response.wsgi_request))
+        self.assertIn("新增 1 筆", messages)
+        self.assertIn("完整儲存 3 點", messages)
+        self.assertIn("略過 1 筆", messages)
+        self.assertIn("Batch_4.2V", messages)
+
+    def test_all_existing_voltages_are_a_no_op(self):
+        self.batch_upload()
+        self.client.get(reverse("ICmanage:ic-list", args=["rx"]))
+        before = list(ICSetting.objects.values())
+        response = self.batch_upload()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(list(ICSetting.objects.values()), before)
+        messages = ' '.join(str(message) for message in get_messages(response.wsgi_request))
+        self.assertIn("沒有需要新增的資料", messages)
+        self.assertIn("略過 2 筆", messages)
+        self.assertNotIn("完整儲存", messages)
+
+    def test_other_kind_does_not_block_new_voltages(self):
+        ICSetting.objects.create(kind="charger", name="Batch_4.2V", model_number="Batch", voltage=4.2,
+                                 points=[[0, 70], [100, 75], [200, 80]])
+        response = self.batch_upload()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(ICSetting.objects.filter(kind="rx", model_number="Batch").count(), 2)
+
+    def test_name_conflict_is_not_silently_skipped(self):
+        ICSetting.objects.create(kind="rx", name="Batch_4.2V", model_number="Different", voltage=5,
+                                 points=[[0, 70], [100, 75], [200, 80]])
+        before = ICSetting.objects.count()
+        response = self.batch_upload()
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["form"].errors)
         self.assertEqual(ICSetting.objects.count(), before)
-        existing.refresh_from_db()
-        self.assertEqual(existing.points[0][1], 70)
+
+    def test_invalid_existing_voltage_data_still_rejects_file(self):
+        self.batch_upload()
+        before = list(ICSetting.objects.values())
+        text = "voltage_v,current_ma,efficiency_percent\n" + "\n".join(
+            f"{voltage},{current},{101 if voltage == 4.2 else 80}"
+            for voltage in (4.2, 5) for current in (0, 100, 200)
+        )
+        response = self.batch_upload(text)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("file", response.context["form"].errors)
+        self.assertEqual(list(ICSetting.objects.values()), before)
 
     def test_second_insert_failure_rolls_back_first(self):
         save = ICSetting.save
@@ -220,7 +266,8 @@ class CurveWorkbenchTests(TestCase):
         response = self.client.post(reverse("ICmanage:ic-import", args=["rx"]), {
             "voltage": "3.8", "file": SimpleUploadedFile("Rx_CURVE.csv", text),
         })
-        self.assertContains(response, "型號與電壓已有設定")
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(any("略過 1 筆" in str(message) for message in get_messages(response.wsgi_request)))
         self.assertEqual(self.client.post(url, self.payload(name=other.name, voltage="5")).status_code, 302)
         with self.assertRaises(IntegrityError), transaction.atomic():
             ICSetting.objects.create(kind="rx", name="第三個名字", model_number="CURVE", voltage=3.8, points=self.item.points)

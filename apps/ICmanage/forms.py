@@ -44,7 +44,17 @@ class ICImportForm(forms.ModelForm):
     def _post_clean(self):
         if self.errors:
             return
-        for item in self.settings:
+        candidates = self.settings
+        self.settings = []
+        self.skipped_settings = []
+        existing_voltages = set(ICSetting.objects.filter(
+            kind=self.instance.kind, model_number__iexact=self.instance.model_number,
+        ).values_list("voltage", flat=True))
+        for item in candidates:
+            if item.voltage in existing_voltages:
+                self.skipped_settings.append(item.name)
+                continue
+            self.settings.append(item)
             try:
                 item.full_clean()
             except ValidationError as error:

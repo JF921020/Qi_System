@@ -84,9 +84,17 @@ def ic_import(request, kind):
         try:
             saved = form.save()
             result = form.result
-            messages.success(request, f'已依 {result["voltage_source"]} 匯入 {len(saved)} 筆 IC 設定：'
-                             f'完整儲存 {result["count"]} 點，略過 {result["skipped"]} 筆空白效率。'
-                             '計算頁重新載入後即可選用。')
+            if saved:
+                messages.success(request, f'已依 {result["voltage_source"]} 新增 {len(saved)} 筆 IC 設定：'
+                                 f'完整儲存 {sum(len(item.points) for item in saved)} 點。'
+                                 '計算頁重新載入後即可選用。')
+            else:
+                messages.info(request, '沒有需要新增的資料，既有資料保持不變。')
+            if form.skipped_settings:
+                messages.info(request, f'略過 {len(form.skipped_settings)} 筆已存在的型號／電壓設定：'
+                              + '、'.join(form.skipped_settings) + '；既有資料未變動。')
+            if result["skipped"]:
+                messages.info(request, f'略過 {result["skipped"]} 筆空白效率。')
             if result["skipped_voltages"]:
                 messages.warning(request, '以下電壓效率全部空白，未建立設定：' +
                                  '、'.join(f'{value:g}V' for value in result["skipped_voltages"]))

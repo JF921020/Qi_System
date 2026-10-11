@@ -11,14 +11,13 @@
                 point.every(value => value === null || typeof value === 'number'))) return;
         } catch { return; } // Invalid JSON remains available in the original field for repair.
         const query = find('[data-query]');
-        const sort = find('[data-sort]');
         const size = find('[data-size]');
         const body = find('tbody');
         const chart = find('svg');
         let page = 0;
         const axisLabel = () => editable ? form.elements.namedItem('axis').selectedOptions[0].textContent : section.dataset.axis;
-        const selected = () => points.map((point, index) => ({point, index})).filter(({point, index}) =>
-            [index + 1, point[1]].some(value => String(value ?? '').includes(query.value.trim())));
+        const selected = () => points.map((point, index) => ({point, index})).filter(({point}) =>
+            String(point[0] ?? '').includes(query.value.trim()));
         function svg(tag, attrs, text) {
             const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
             Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, value));
@@ -40,16 +39,20 @@
             find('[data-chart-note]').textContent = !valid ? '含空白或無效數值，請修正資料點後再顯示趨勢圖。' :
                 !data.length ? '沒有可繪製的資料點。' : `趨勢圖顯示搜尋結果全部 ${data.length} 點，不受分頁影響；依 X 遞增連線。`;
             if (hideChart) return;
-            const low = data[0][0], high = data[data.length - 1][0];
-            const x = value => high === low ? 340 : 60 + (value - low) / (high - low) * 540;
+            const high = data[data.length - 1][0];
+            const x = value => high === 0 ? 60 : 60 + value / high * 540;
             const y = value => 230 - value * 2;
             [0, 25, 50, 75, 100].forEach(value => {
                 svg('line', {x1: 60, y1: y(value), x2: 600, y2: y(value), stroke: '#e2e8f0'});
                 svg('text', {x: 50, y: y(value) + 4, 'text-anchor': 'end', 'font-size': 12}, String(value));
             });
             svg('text', {x: 60, y: 18, 'font-size': 12}, '效率 (%)');
-            svg('text', {x: 60, y: 249, 'font-size': 12}, String(low));
-            svg('text', {x: 600, y: 249, 'text-anchor': 'end', 'font-size': 12}, String(high));
+            for (let i = 0; i <= (high === 0 ? 0 : 10); i++) {
+                const position = 60 + i * 54;
+                const value = Number((high * i / 10).toPrecision(12));
+                svg('line', {x1: position, y1: 30, x2: position, y2: 230, stroke: '#e2e8f0'});
+                svg('text', {x: position, y: 249, 'text-anchor': i === 0 ? 'start' : i === 10 ? 'end' : 'middle', 'font-size': 12}, String(value));
+            }
             svg('text', {x: 330, y: 272, 'text-anchor': 'middle', 'font-size': 12}, axisLabel());
             svg('polyline', {points: data.map(point => `${x(point[0])},${y(point[1])}`).join(' '), fill: 'none', stroke: '#4f46e5', 'stroke-width': 2});
             // Dense curves retain every line vertex; individual values remain in the paged table.
@@ -61,11 +64,10 @@
             });
         }
         function render() {
-            const [column, direction] = sort.value.split('-');
             const matches = selected();
             matches.sort((a, b) => {
-                if (a.point[column] === null || b.point[column] === null) return Number(b.point[column] === null) - Number(a.point[column] === null);
-                return (a.point[column] - b.point[column]) * (direction === 'asc' ? 1 : -1);
+                if (a.point[0] === null || b.point[0] === null) return Number(b.point[0] === null) - Number(a.point[0] === null);
+                return a.point[0] - b.point[0];
             });
             const pages = Math.max(1, Math.ceil(matches.length / Number(size.value)));
             page = Math.min(page, pages - 1);
@@ -94,7 +96,7 @@
             });
             find('[data-axis-heading]').textContent = axisLabel();
             Array.from(find('thead tr').cells).forEach((heading, index) => {
-                heading.setAttribute('aria-sort', index === Number(column) ? (direction === 'asc' ? 'ascending' : 'descending') : 'none');
+                heading.setAttribute('aria-sort', index === 0 ? 'ascending' : 'none');
             });
             find('[data-status]').textContent = matches.length ? `第 ${page + 1} / ${pages} 頁 · ${matches.length} / ${points.length} 筆` : '沒有符合的資料點。';
             find('[data-prev]').disabled = page === 0;
@@ -102,12 +104,12 @@
             draw();
         }
         query.addEventListener('input', () => { page = 0; render(); });
-        [sort, size].forEach(control => control.addEventListener('change', () => { page = 0; render(); }));
+        size.addEventListener('change', () => { page = 0; render(); });
         find('[data-prev]').addEventListener('click', () => { page--; render(); });
         find('[data-next]').addEventListener('click', () => { page++; render(); });
         if (editable) {
             find('[data-add]').addEventListener('click', () => {
-                points.unshift([null, null]); page = 0; query.value = ''; sort.value = '0-asc'; render();
+                points.unshift([null, null]); page = 0; query.value = ''; render();
                 body.querySelector('input')?.focus();
             });
             form.elements.namedItem('axis').addEventListener('change', render);

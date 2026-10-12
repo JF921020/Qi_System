@@ -138,5 +138,6 @@ outputs/
 docs/
 *.csv
 *.xlsx
-*.lock
+_to_delete/
+backup/
 .qi-tasks-preview.py

@@ -53,6 +53,44 @@ class VoltageImportTests(TestCase):
         self.assertContains(response, "至少需要 3 筆")
         self.assertEqual(ICSetting.objects.count(), before)
 
+    def test_manual_duplicate_shows_field_error_and_preserves_data(self):
+        self.upload("3.8", with_column=False)
+        before = list(ICSetting.objects.values())
+        response = self.upload("3.8", with_column=False, filename="Rx_test.csv")
+        self.assertContains(response, "拒絕整次匯入")
+        self.assertContains(response, 'class="errorlist"')
+        self.assertIn("voltage", response.context["form"].errors)
+        self.assertEqual(list(ICSetting.objects.values()), before)
+        self.assertEqual(self.upload("5", with_column=False).status_code, 302)
+        self.assertTrue(ICSetting.objects.filter(kind="rx", model_number="Test", voltage=5).exists())
+
+    def test_file_voltage_rejects_duplicate_even_when_manual_voltage_is_filled(self):
+        self.upload()
+        before = list(ICSetting.objects.values())
+        response = self.upload("3.8")
+        self.assertContains(response, "拒絕整次匯入")
+        self.assertIn("file", response.context["form"].errors)
+        self.assertEqual(list(ICSetting.objects.values()), before)
+
+    def test_manual_excel_duplicate_is_rejected(self):
+        self.upload("3.8", with_column=False)
+        before = list(ICSetting.objects.values())
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "Rx_Test"
+        sheet.append(["current_ma", "efficiency_percent"])
+        for current in (0, 100, 200):
+            sheet.append([current, 80])
+        buffer = BytesIO()
+        workbook.save(buffer)
+        response = self.client.post(self.url, {
+            "voltage": "3.8", "worksheet": sheet.title,
+            "file": SimpleUploadedFile("manual.xlsx", buffer.getvalue()),
+        })
+        self.assertContains(response, "拒絕整次匯入")
+        self.assertIn("voltage", response.context["form"].errors)
+        self.assertEqual(list(ICSetting.objects.values()), before)
+
     def test_auto_voltage_excel(self):
         workbook = Workbook()
         sheet = workbook.active
@@ -67,6 +105,13 @@ class VoltageImportTests(TestCase):
         })
         self.assertEqual(response.status_code, 302)
         self.assertEqual(ICSetting.objects.get(name="Excel_3.8V").voltage, 3.8)
+        before = list(ICSetting.objects.values())
+        response = self.client.post(self.url, {
+            "worksheet": sheet.title, "file": SimpleUploadedFile("data.xlsx", buffer.getvalue()),
+        })
+        self.assertContains(response, "拒絕整次匯入")
+        self.assertIn("file", response.context["form"].errors)
+        self.assertEqual(list(ICSetting.objects.values()), before)
 
     def batch_upload(self, text=None):
         text = text or "VIN (V),VBAT (V),current_ma,efficiency_percent\n" + "\n".join(
@@ -101,7 +146,7 @@ class VoltageImportTests(TestCase):
             self.assertTrue(all(item.points[0] == [0, 0] for item in items))
             items.delete()
 
-    def test_batch_adds_only_missing_voltages_and_preserves_existing_fields(self):
+    def test_batch_rejects_existing_but_imports_new_voltages(self):
         existing = ICSetting.objects.create(kind="rx", name="Already", model_number="bAtCh", voltage=4.2,
                                             points=[[0, 70], [100, 75], [200, 80]])
         original = ICSetting.objects.filter(pk=existing.pk).values().get()
@@ -109,26 +154,23 @@ class VoltageImportTests(TestCase):
         response = self.batch_upload()
         self.assertEqual(response.status_code, 302)
         self.assertEqual(ICSetting.objects.count(), before + 1)
+        self.assertEqual(ICSetting.objects.filter(pk=existing.pk).values().get(), original)
         self.assertEqual(ICSetting.objects.get(kind="rx", model_number="Batch", voltage=3.8).points,
                          [[0, 80], [100, 81], [200, 82]])
-        self.assertEqual(ICSetting.objects.filter(pk=existing.pk).values().get(), original)
-        messages = ' '.join(str(message) for message in get_messages(response.wsgi_request))
-        self.assertIn("新增 1 筆", messages)
-        self.assertIn("完整儲存 3 點", messages)
-        self.assertIn("略過 1 筆", messages)
-        self.assertIn("Batch_4.2V", messages)
+        page = self.client.get(reverse("ICmanage:ic-list", args=["rx"]))
+        self.assertContains(page, "新增 1 筆")
+        self.assertContains(page, "完整儲存 3 點")
+        self.assertContains(page, "拒絕匯入 1 筆")
+        self.assertContains(page, "bAtCh", count=None)
+        self.assertContains(page, 'class="notice errorlist" role="alert"')
 
-    def test_all_existing_voltages_are_a_no_op(self):
+    def test_all_existing_voltages_are_rejected(self):
         self.batch_upload()
-        self.client.get(reverse("ICmanage:ic-list", args=["rx"]))
         before = list(ICSetting.objects.values())
         response = self.batch_upload()
-        self.assertEqual(response.status_code, 302)
+        self.assertContains(response, "拒絕整次匯入")
+        self.assertEqual(len(response.context["form"].errors["file"]), 2)
         self.assertEqual(list(ICSetting.objects.values()), before)
-        messages = ' '.join(str(message) for message in get_messages(response.wsgi_request))
-        self.assertIn("沒有需要新增的資料", messages)
-        self.assertIn("略過 2 筆", messages)
-        self.assertNotIn("完整儲存", messages)
 
     def test_other_kind_does_not_block_new_voltages(self):
         ICSetting.objects.create(kind="charger", name="Batch_4.2V", model_number="Batch", voltage=4.2,
@@ -266,8 +308,8 @@ class CurveWorkbenchTests(TestCase):
         response = self.client.post(reverse("ICmanage:ic-import", args=["rx"]), {
             "voltage": "3.8", "file": SimpleUploadedFile("Rx_CURVE.csv", text),
         })
-        self.assertEqual(response.status_code, 302)
-        self.assertTrue(any("略過 1 筆" in str(message) for message in get_messages(response.wsgi_request)))
+        self.assertContains(response, "拒絕整次匯入")
+        self.assertIn("voltage", response.context["form"].errors)
         self.assertEqual(self.client.post(url, self.payload(name=other.name, voltage="5")).status_code, 302)
         with self.assertRaises(IntegrityError), transaction.atomic():
             ICSetting.objects.create(kind="rx", name="第三個名字", model_number="CURVE", voltage=3.8, points=self.item.points)

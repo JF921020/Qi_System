@@ -304,7 +304,7 @@ class ICImportTests(TestCase):
             self.assertIn(f"Charger_MP2733_{voltage}V", item.source)
         before = ICSetting.objects.count()
         response = self.client.post(url, self.payload(csv, filename="MP2733.csv"))
-        self.assertEqual(response.status_code, 302)
+        self.assertIn("voltage", response.context["form"].errors)
         response = self.client.post(url, self.payload(csv, filename="X" * 120 + ".csv"))
         self.assertIn("file", response.context["form"].errors)
         self.assertEqual(ICSetting.objects.count(), before)
@@ -332,7 +332,7 @@ class ICImportTests(TestCase):
             page = self.client.get(reverse("main:index"))
             self.assertEqual(page.context["curves"][kind][item.code]["data"], [[0.1, 0], [0.5, 80], [1, 90]])
             response = self.client.post(url, self.payload(text))
-            self.assertEqual(response.status_code, 302)
+            self.assertIn("file", response.context["form"].errors)
             self.assertEqual(ICSetting.objects.filter(kind=kind, name=item.name).count(), 1)
 
     def test_bad_uploads_never_write_and_csrf_is_required(self):

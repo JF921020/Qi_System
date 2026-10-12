@@ -27,7 +27,7 @@
         <div class="breadcrumb">WORKSPACE &gt; <span>{% block breadcrumb %}IC 資料管理{% if title %} / {{ title }}{% endif %}{% endblock %}</span></div>
     </header>
 <main class="ic-content">
-    {% for message in messages %}<p class="notice" role="status">{{ message }}</p>{% endfor %}
+    {% for message in messages %}<p class="notice{% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %} errorlist{% endif %}" role="{% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}alert{% else %}status{% endif %}">{{ message }}</p>{% endfor %}
     {% block content %}{% endblock %}
 </main>
 </div>

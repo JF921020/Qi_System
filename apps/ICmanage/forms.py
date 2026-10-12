@@ -44,21 +44,25 @@ class ICImportForm(forms.ModelForm):
     def _post_clean(self):
         if self.errors:
             return
-        candidates = self.settings
-        self.settings = []
-        self.skipped_settings = []
         existing_voltages = set(ICSetting.objects.filter(
             kind=self.instance.kind, model_number__iexact=self.instance.model_number,
         ).values_list("voltage", flat=True))
+        candidates = self.settings
+        self.settings = []
+        self.rejected_settings = []
         for item in candidates:
             if item.voltage in existing_voltages:
-                self.skipped_settings.append(item.name)
+                self.rejected_settings.append(f"型號 {item.model_number}／{item.voltage:g}V")
                 continue
             self.settings.append(item)
             try:
                 item.full_clean()
             except ValidationError as error:
                 self.add_error(None, f'{item.name}：{"；".join(error.messages)}')
+        if not self.settings and self.rejected_settings:
+            field = "voltage" if self.result["voltage_source"] == "手動設定" else "file"
+            for duplicate in self.rejected_settings:
+                self.add_error(field, f"此類 IC 的{duplicate} 已存在，拒絕整次匯入；沒有可新增的電壓，既有資料未變動。")
 
     def save(self, commit=True):
         if self.errors:

@@ -1,164 +1,305 @@
-# Qi 無線充電預測工具（Django）
+# Qi 無線充電預測工具
 
-## 本機開發
+以 Django 管理 Rx IC／Charger IC 效率資料，並在瀏覽器即時計算無線充電效率、輸入功率與各階損耗。支援 Google 登入、CSV／Excel 多電壓匯入，以及效率曲線檢視與編輯。
 
-1. 建立虛擬環境並安裝套件（Ubuntu 需先安裝 `mysqlclient` 編譯依賴，見下方「Ubuntu / Gunicorn 部署」）：
+## 功能與資料保存
 
-   ```powershell
-   python -m venv venv
-   .\venv\Scripts\python.exe -m pip install -r requirements.txt
-   ```
+- **即時計算**：JavaScript 在瀏覽器計算，不會在每次調整參數時呼叫後端計算 API。
+- **IC 資料庫**：保存型號、電壓、曲線或固定效率、來源與最後修改者；Rx IC 與 Charger IC 分開管理。
+- **多電壓匯入**：既有電壓不覆蓋，新電壓可繼續新增，重複項目以紅字提示。
+- **曲線工作台**：搜尋 X 值、依 X 遞增顯示資料、分頁及即時繪圖。
+- **帳號權限**：計算頁與 IC 清單公開，資料寫入限管理者。
 
-2. 建立 MySQL／MariaDB 資料庫（需 utf8mb4 以支援中文與 Emoji）：
+資料庫保存 IC 設定與平台帳號，不保存上傳的原始檔案。數位化工具的自訂曲線僅供當次計算；歷史展示資料與圖片另由前端 JavaScript、瀏覽器 localStorage 處理，不代表整份計算專案已存入資料庫。
 
-   ```sql
-   CREATE DATABASE qi_platform
-     CHARACTER SET utf8mb4
-     COLLATE utf8mb4_unicode_ci;
-   ```
+## 本機啟動（Windows／PowerShell）
 
-3. 複製 `.env.example` 為 `.env`，填入 `DB_*`、`DJANGO_SECRET_KEY` 與 Google OAuth 設定（見 [Google 登入設定](docs/google-login.md)）。
+### 1. 準備環境
 
-4. 在 `Qi_System` 目錄執行：
+需要 Python、MySQL 或 MariaDB。執行 JavaScript 測試另需 Node.js；網站本身不需要啟動 Vue／Vite 或執行前端建置。
 
-   ```powershell
-   .\venv\Scripts\python.exe manage.py migrate
-   .\venv\Scripts\python.exe manage.py runserver
-   ```
+以下命令均在包含 `manage.py` 的專案根目錄執行。`requirements.txt` 尚未完整鎖定套件版本，部署前請確認選用的 Python 與實際安裝套件相容。
 
-開啟 http://127.0.0.1:8000/ 即可使用，一般計算不需帳號或登入，也不需要啟動 Vue 或 Vite。管理功能以 Google 帳號登入。
-
-## Docker 部署
-
-專案已提供 `Dockerfile` 與 `compose.yaml`（Django + MariaDB 11.4）。在 `.env.docker` 設定 `DJANGO_SECRET_KEY`、`DJANGO_ALLOWED_HOSTS`、`QI_DB_PASSWORD`、`QI_DB_ROOT_PASSWORD` 及 Google OAuth 變數後執行：
-
-```bash
-docker compose --env-file .env.docker up -d --build
+```powershell
+python -m venv venv
+.\venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-容器啟動時自動執行 `migrate` 與 `collectstatic`，再以 Gunicorn 提供服務。預設僅綁定主機 `127.0.0.1:8500`，可用 `QI_BIND_IP`、`QI_HTTP_PORT` 調整；對外入口需由具備主機 Docker 權限的管理員設定。
+### 2. 建立資料庫與環境設定
 
-## 帳號與權限
+在 MySQL／MariaDB 建立資料庫，並配置可存取它的應用程式帳號：
 
-平台不再使用帳號密碼，改以 Google 帳號（OpenID Connect）登入；一般使用不需帳號。Google 驗證通過後，系統在 `accounts_platform_user` 新增或對應一筆平台使用者（ID、信箱、使用者名稱、Google 識別碼、角色），其他資料以此 ID 作為外鍵（例如 IC 設定的「最後修改者」）。完整流程與設定見 [Google 登入設定](docs/google-login.md)。
+```sql
+CREATE DATABASE qi_platform
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+```
 
-- **一般使用**：不需帳號或登入，可調整電流、電壓，即時更新效能計算；IC 清單僅供檢視。
-- **管理者**：首次以 Google 登入即建立為管理者（`GOOGLE_DEFAULT_ROLE=admin`），可匯入、編輯及刪除 Rx IC／Charger IC 資料。
-- **檢視者**：角色改為 viewer 的帳號可登入，但不能變更 IC 資料（403）。
-- **系統管理者**：信箱列於 `PLATFORM_SUPERUSER_EMAILS`，或與既有 Django superuser 信箱相同者，登入後可在帳號設定開啟「帳號管理」，調整角色或停用平台使用者。
+首次設定時複製範本；已有 `.env` 時直接編輯，避免覆蓋：
 
-IC 管理導覽列提供 Google 登入／登出；計算頁與 IC 清單皆可直接使用。`/admin/login/` 也會導向 Google 登入，登出後返回計算頁。
-透過 `/proxy/8000/` 等子路徑部署時，站內跳轉會使用相對網址，避免代理再次加上前綴而造成登入／登出後 404；更新後需重啟 Django／Gunicorn 以載入中介層。
-管理者在 Rx IC 或 Charger IC 清單按「匯入效率資料」，上傳效能表 `.xlsx` 或 `.csv`，選擇 5V／12V 後儲存；CSV 自動讀取檔名，XLSX 則在選檔後列出工作表供選擇，不需輸入名稱。匯入資料會寫入資料庫，計算頁重新載入即可選用。
-登出使用含 CSRF token 的 POST；未登入者存取 IC 寫入網址會導向登入，已登入但沒有工作人員權限的帳號會收到 403。
-調整電壓、電流、容量或 C-rate 時，充電功率會依 P＝V×I 同步更新並立即重算；仍可直接輸入目標功率。功率曲線依新功率查表，電流曲線依新電流查表，固定效率保持其設定值，並非每次改電壓都會改變效率百分比。
+```powershell
+Copy-Item .env.example .env
+```
 
-## 檔案位置
+填入實際設定，以下帳號、密碼與金鑰都是待替換欄位：
 
-- `apps/main/templates/main/index.html`：Django 頁面模板。
-- `apps/main/static/main/qi-tool.css`：頁面樣式。
-- `apps/main/static/main/qi-tool-*.js`：本地運算、結果顯示、繪圖、歷史資料及互動功能模組。
-- `apps/main/static/main/qi-tool-calculation.js`：JavaScript 效率計算、輸入驗證與結果更新，修改公式的入口。
-- `apps/ICmanage/`：IC 管理的 model、form、catalog、view、URL、模板、樣式、admin 與測試。
-- `apps/accounts/`：Google 登入（OIDC）、平台使用者 model、角色與帳號管理。
-- `apps/main/curves.json`：原始曲線基準，保留作舊版計算比對；瀏覽器使用頁面載入時提供的資料庫曲線。
-- `apps/main/views.py`、`urls.py`：計算頁與路由。
+```dotenv
+DB_NAME=qi_platform
+DB_USER=你的資料庫帳號
+DB_PASSWORD=你的資料庫密碼
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DJANGO_DEBUG=true
+DJANGO_SECRET_KEY=你的隨機金鑰
+DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+FORCE_SCRIPT_NAME=
+```
 
-原始外部 HTML 保留不動；現有 `frontend` 目錄不參與此頁面。
-CSS 與 JS 透過 Django 的 `{% static %}` 引用；JS 保持一般 script，讓 HTML 的 onclick 等事件仍可呼叫原有函式。
+可產生一次金鑰並存入 `.env`；已有正式金鑰應沿用：
 
-## 目前範圍
+```powershell
+.\venv\Scripts\python.exe -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
 
-Django 負責頁面與 IC 資料庫管理。IC 曲線插值、ACR、Qrx、線圈／系統效率、輸入功率與各階損耗均由瀏覽器 JavaScript 計算。
-每次輸入變動會立即同步計算及更新畫面，不再發送計算請求。輸入錯誤時顯示原因，保留上次效率並標示尚未更新，同時清除功率結果及診斷快照；修正後立即恢復。
-智慧反推的目標求解、診斷文字與歷史卡片查表仍在前端；診斷使用最新本地結果，損耗分項與主畫面一致。
-歷史資料仍內嵌在 JS，圖片仍存於 localStorage。IC 管理頁的曲線永久儲存於資料庫；數位化工具僅供「套用本次計算」；新 IC 設定統一由 Excel／CSV 匯入。原始上傳圖檔不會儲存。
-從原本 file:// 開啟的頁面切換到 localhost 後，瀏覽器不會自動帶入原來源的 localStorage 圖片。
-管理者以 Google 帳號登入；IC 匯入、編輯與刪除皆由伺服器檢查工作人員權限。
+`.env` 已排除於 Git；不要將真實密碼或 OAuth 憑證填入 `.env.example`。
 
-## JavaScript 計算
+### 3. 初始化並啟動
 
-`qi-tool-calculation.js` 的 `calculate(state, catalog = curveCatalog)` 回傳計算結果，不修改輸入。
-`triggerCalc()` 負責呼叫計算並更新 UI。原 `POST /api/main/` 與 Python `service.py` 已移除。
-`state` 必填數值：`batCapacity` (mAh)、`batVoltage` (V)、`batMaxC`、`sysPower` (W)、`rxL` (µH)、`rxR` (mΩ)、`freq` (kHz)、`qTx`、`kVal`。
-必填選項：`caseMaterial` (`pc_abs/aluminum/zinc`)、`ncWrap` (`yes/no`)、`rxIcSelect`、`chargerIcSelect`。
-`kVal` 範圍為 0–1；`sysPower` 與 `batMaxC` 可為零，其餘上述數值必須大於零（目前最小 0.000001），數值上限為 1000000。
-選擇 `custom` 時需提供對應的 `rxIcEff` 或 `chargerIcEff` (0–100%)。
-數位化工具會將 `custom_*` 型號加入瀏覽器的曲線目錄：`axis` 為 `power/current`，`data` 為 3–10000 組 `[x, efficiency]`，x 必須非負且嚴格遞增，效率為 0–100%。
-資料庫曲線在頁面載入時傳入瀏覽器；本次套用的自訂曲線只留在頁面記憶體。兩類 IC 均依設定的 power/current 軸查表，範圍以外沿用端點效率。
+```powershell
+.\venv\Scripts\python.exe manage.py migrate
+.\venv\Scripts\python.exe manage.py check
+.\venv\Scripts\python.exe manage.py runserver
+```
 
-成功回傳 `modelVersion: "lqk-v1"`、各階效率、`Qrx`、`rxACR`、`pInTotal`、`totalLoss`、`coilLoss`、`icLoss` 等欄位。
-零效率且要求非零輸出時，無法計算的功率為 `null`，並附上 `warnings`，不回傳 Infinity 或 NaN。
-輸入錯誤由 JavaScript 拋出並在畫面顯示；IC 管理的資料寫入仍使用 Django CSRF 保護。
-此版保留原有經驗公式，不代表增加物理模型準確度；調整模型時請更新版本及比對案例。
+開啟 <http://127.0.0.1:8000/>。`runserver` 用於開發，正式服務請參考下方部署方式。
 
-## IC 管理
+## Google 登入與權限
 
-側邊欄「Rx IC 管理」與「Charger IC 管理」分別開啟 `/ics/rx/`、`/ics/charger/`。
-首次 migrate 匯入 12 筆原有設定。每筆可保存設定名稱、IC 型號、曲線或固定效率、軸向及資料來源。
-同類別名稱唯一；同型號可用不同名稱保存不同量測條件。
-查表軸向支援 W、A、mA。選 mA 可直接輸入 `[[100,80],[500,92],[1000,95]]`；查表電流為電池容量(mAh) × C-rate。mA 資料以原單位保存，提供計算頁時統一換算為 A，歷史與反推共用相同結果。Excel／CSV 的 mA 欄位自動選用 mA 軸；數位化工具也可選 mA。更新後請執行 `python manage.py migrate`。
-IC 清單不要求登入，所有人皆可讀取及搜尋；匯入、編輯及刪除僅限登入的管理者，寫入操作受 CSRF 保護。
-管理頁的命名設定以單筆 IC 效率配置為單位，不包含整份線圈／電池專案參數。
-儲存後返回計算頁即可選用；其他已開啟頁面需重新整理以更新選單及前端診斷資料。
-刪除需經確認頁 POST，不會自動恢復種子資料。已開啟的頁面保留載入時的曲線，重新整理後同步資料庫變更。
-歷史展示會使用目前資料庫效率設定，並非不可變的過往計算快照。請備份目前設定使用的資料庫以保存管理資料。
+網站使用 Google OpenID Connect 登入，不提供帳號密碼登入；`/admin/login/` 也會導向 Google 登入。
+
+在 Google Cloud Console 建立「網頁應用程式」OAuth 用戶端，加入與實際網址完全相同的重新導向 URI，例如：
+
+```text
+http://127.0.0.1:8000/accounts/google/callback/
+https://qi.example.com/accounts/google/callback/
+```
+
+部署時替換示例網域。使用 `localhost` 或子路徑時，也要登記對應的完整 URI。OAuth 同意畫面若處於測試狀態，需加入測試使用者。
+
+在 `.env` 設定：
+
+```dotenv
+GOOGLE_OAUTH_CLIENT_ID=你的ClientID
+GOOGLE_OAUTH_CLIENT_SECRET=你的ClientSecret
+GOOGLE_OAUTH_REDIRECT_URI=http://127.0.0.1:8000/accounts/google/callback/
+GOOGLE_ALLOWED_DOMAINS=example.com
+GOOGLE_DEFAULT_ROLE=viewer
+PLATFORM_SUPERUSER_EMAILS=admin@example.com
+```
+
+| 設定 | 用途 |
+| --- | --- |
+| `GOOGLE_OAUTH_REDIRECT_URI` | 留白時依請求產生；代理部署建議明確填入公開回呼網址 |
+| `GOOGLE_ALLOWED_DOMAINS` | 允許的信箱網域，逗號分隔；留白表示不限制網域 |
+| `GOOGLE_DEFAULT_ROLE` | 新帳號角色：`admin` 或 `viewer`；不改變既有帳號角色 |
+| `PLATFORM_SUPERUSER_EMAILS` | 登入時授予系統管理者權限的信箱，逗號分隔 |
+
+目前程式及 `.env.example` 的預設角色仍是 `admin`。正式環境請依需求改成 `viewer` 並限制登入網域。系統管理者若也要匯入、編輯 IC，其平台角色仍須為 `admin`。
+
+| 身分 | 權限 |
+| --- | --- |
+| 未登入／檢視者 | 使用計算頁、瀏覽與搜尋 IC 清單 |
+| 管理者 `admin` | 匯入、編輯、刪除 IC 設定 |
+| 系統管理者 | 在帳號設定中管理平台使用者角色與停用狀態 |
+
+IC 寫入與登出受 CSRF 保護。平台使用者存於 `accounts_platform_user`，IC 最後修改者關聯此資料表。
 
 ## IC 效率資料匯入
 
-在 Rx／Charger IC 管理點選「匯入效率資料」，上傳 `.xlsx` 或 UTF-8 `.csv`，選擇 5V／12V 條件，無須輸入型號或名稱。CSV 從檔名取得型號（不含 `.csv`）；XLSX 選檔後會讀取並列出工作表，請從下拉選單選擇要匯入的一張，再按「匯入並儲存」，型號取自所選工作表名稱。工作表選擇需要啟用 JavaScript，讀取清單時不會新增設定或保存原始檔案。儲存型號時自動移除開頭的 `Charger`、`cherger`、`Rx` 與其空白、底線或連字號分隔符，不分大小寫（例：`Charger_MP2733.csv` → `MP2733`）。型號也會去除末尾 `_5V`／`_12V`；設定名稱自動產生為「型號_電壓」，例如 `MP2733_5V`、`MP2733_12V`。來源保留完整 CSV 檔名或工作表名稱。依電壓分組新增曲線。同類別、同型號（不分大小寫）、同電壓已存在時，拒絕該組並以紅字提醒，其他新電壓照常新增；全部重複（含手動電壓）則留在匯入頁顯示紅字，既有資料保持不變。需安裝 requirements.txt 中的 openpyxl。
+### 操作與命名
 
-支援本專案「電池效能表.xlsx」的 IC 明細表（例如 `Charger_MP2733`），不匯入摘要。
+1. 進入 `/ics/rx/` 或 `/ics/charger/`，以管理者身分選擇「匯入效率資料」。
+2. 上傳 UTF-8 CSV 或 `.xlsx`。Excel 必須選取一張工作表；列出工作表時不會寫入資料庫。
+3. 沒有電壓欄時手動填入電壓，例如 `3.8`、`5`、`12`；有電壓欄時以檔案為準。
+4. 查看新增訊息與紅字提醒，重新載入計算頁即可使用新增設定。
 
-Excel 效率先按儲存格數值／百分比格式的顯示小數位四捨五入，再換算成百分比（如 `0.94309` 在 `0.0000` 格式下匯入為 `94.31%`）。General 保留原值；複雜自訂格式會提示改用一般數值格式。CSV 依檔案文字數值匯入。此規則只影響新匯入的資料，既有設定不會自動重寫。
+CSV 以檔名、Excel 以工作表名稱取得型號。系統移除 `Charger`／`cherger`／`Rx` 前綴及 `_5V`、`_3.8V` 等末尾電壓後綴，再產生「型號_電壓」設定名稱。
 
-CSV 範例：
+例如 `Charger_MP2733_5V.csv` 解析出的型號為 `MP2733`。**檔名的 `_5V` 不作為電壓來源**；沒有電壓欄仍須手動輸入。Rx／Charger 類別由匯入頁面決定，不由檔名前綴決定。
+
+### CSV 格式與電壓來源
+
+以下為虛構的多電壓範例，每個電壓至少 3 個有效點：
 
 ```csv
 voltage_v,current_ma,efficiency_percent
-5,100,82
-5,500,94.5
-5,1000,95.6
+5,100,80
+5,500,90
+5,1000,92
+9,100,82
+9,500,91
+9,1000,93
+12,100,81
+12,500,89
+12,1000,91
 ```
 
-電流也可用 `current_a`，功率可用 `power_w`；小數效率改用 `efficiency_fraction`。電壓優先讀取 `VBAT (V)`／`VBAT`／`vbat_v`，無 VBAT 才使用 `VIN (V)`／`工作電壓 (V)`／`voltage_v`；無電壓欄時才使用手動設定。同一 CSV 或選取的 Excel 工作表依電壓分組建立多筆設定，每組至少 3 點。與既有同類別、同型號資料重複的電壓不寫入，以紅字列出；其他新電壓照常新增。檔案仍須通過完整資料驗證，任一組資料錯誤或新設定名稱衝突則整批不寫入；全空白效率組略過並提示。空白效率略過、零值保留，拒絕非有限值、超出範圍、同組重複 X 及公式。5 MB／10000 列上限（包含表頭及說明列）；曲線支援最多 10000 點，所有有效點均完整保存，不合併或簡化共線點。原始檔不保存。
+沒有電壓欄時，手動輸入的電壓套用於整份檔案：
 
-來源保留表頭說明，可於匯入後編輯。電壓條件尚不會自動限制計算頁選項；請自行選對設定，並確認 Rx 數值是否已含線圈／Tx 損耗。沿用現有 IC 管理權限與 CSRF 保護。
+```csv
+current_ma,efficiency_percent
+100,80
+500,90
+1000,92
+```
 
-## 驗證
+| 資料 | 支援欄名與單位 |
+| --- | --- |
+| 電流 | `current_ma`／`Iout (mA)`，或 `current_a`／`Iout (A)` |
+| 功率 | `power_w`／`Pout (W)` |
+| 百分比效率 | `efficiency_percent`／`效率 (%)`／`效率(%)`，0～100 |
+| 小數效率 | `efficiency_fraction`／`效率（小數）`，0～1 |
+| 優先電壓 | `VBAT (V)`／`VBAT`／`vbat_v` |
+| 其他電壓 | `voltage_v`／`工作電壓 (V)`／`VIN (V)` |
+
+同時有 VBAT 與 VIN 時使用 VBAT；VBAT 空白或無效不會改用 VIN。沒有 VBAT 時須能唯一辨識其他電壓欄。手動電壓不會篩選檔案內的電壓。電流與功率同時存在時優先使用電流。
+
+### 重複電壓的處理
+
+以 **IC 類別＋型號（不分大小寫）＋電壓** 判斷重複，不比較檔案內容或效率是否相同。
+
+假設資料庫已有 Charger／MP2733／5V：
+
+| 匯入內容 | 處理結果 |
+| --- | --- |
+| 5V、9V、12V | 5V 不寫入並以紅字提醒；新增 9V、12V |
+| 只有 5V | 留在匯入頁，紅字提示沒有可新增的電壓 |
+| 沒有電壓欄，手動填 5V | 電壓欄顯示紅字，拒絕匯入 |
+| 沒有電壓欄，手動填 9V | 新增 9V |
+
+既有曲線、名稱、來源與最後修改資訊保持不變。更新既有曲線請使用編輯功能。同一份無電壓欄的檔案手動填不同電壓，會被視為不同設定，請自行確認量測條件。
+
+### 驗證與限制
+
+- 上限 5 MB、10000 列（含表頭與說明）、每列 100 欄；表頭須在前 10 列內。
+- 每個非空電壓組至少 3 點；X 必須非負，同組不能重複；匯入時依 X 排序。
+- 空白效率略過，0% 保留；整組效率空白時不建立該電壓並提示。全部沒有有效點時拒絕匯入。
+- 非數值、非有限值、超出範圍、公式或不支援的格式會回報錯誤。
+- Excel 效率依儲存格顯示精度四捨五入後換算；`General` 保留原值。CSV 使用原始數值。
+- 重複電壓的內容仍須通過解析驗證；資料錯誤或新設定名稱衝突會阻止整批新增。
+- 新增使用資料庫交易，儲存失敗會回滾。同時匯入產生衝突時可能需要重試。
+
+## 曲線與計算方式
+
+工作台使用 SVG 繪圖，X 軸固定從 0 到搜尋結果的最大 X 值，分成 10 格；最大值為 0 時只顯示零刻度。Y 軸為效率 0～100%。搜尋影響圖表範圍，表格分頁不影響；超過 300 點時保留完整連線，但不逐點畫圓點。
+
+資料庫可保存 W、A、mA 軸。mA 資料傳至計算頁前換算成 A；曲線採線性插值，超出範圍時使用端點效率並提示。固定效率不會隨電流或功率改變。
+
+電壓是量測條件，不會自動限制計算頁的 IC 選項。請選擇符合實際條件的曲線，並確認 Rx 效率是否已包含線圈／Tx 損耗。歷史展示引用目前曲線，並非不可變的量測快照。
+
+計算入口為 `qi-tool-calculation.js` 的 `calculate()`，UI 由 `triggerCalc()` 更新。此工具使用現有經驗模型，計算結果不等同硬體實測驗證。
+
+## Windows Server 部署
+
+建議入口為「IIS HTTPS → 本機 Waitress → Django」。`config/wsgi.py` 與 `WSGI_APPLICATION` 可沿用。
+
+**目前 `requirements.txt` 仍列出 Gunicorn，尚未加入 Waitress，也沒有 Windows 服務安裝腳本。** Windows 原生部署請另外安裝 Waitress，不要以 Gunicorn 啟動 Windows 服務。
 
 ```powershell
-.\venv\Scripts\python.exe manage.py check
-.\venv\Scripts\python.exe manage.py test apps.main apps.ICmanage apps.accounts
-Get-ChildItem apps/main/static/main/qi-tool-*.js | ForEach-Object { node --check $_.FullName }
-node apps/main/testdata/calculation.cjs
-node apps/main/testdata/request_flow.cjs
+.\venv\Scripts\python.exe -m pip install -r requirements.txt
+.\venv\Scripts\python.exe -m pip install waitress
 ```
 
-測試包含移植前由原始 JS 擷取的 20 組案例（`testdata/legacy_results.json`）、能量守恆、自訂曲線、錯誤輸入、Google 登入與帳號權限、IC 管理 CSRF、即時計算與錯誤恢復（不使用網路請求）。
+Server 的 `.env` 須填入正式資料庫、Google 憑證及下列值：
 
-## Ubuntu / Gunicorn 部署
+```dotenv
+DJANGO_DEBUG=false
+DJANGO_SECRET_KEY=正式環境專用金鑰
+DJANGO_ALLOWED_HOSTS=qi.example.com,localhost,127.0.0.1
+GOOGLE_OAUTH_REDIRECT_URI=https://qi.example.com/accounts/google/callback/
+FORCE_SCRIPT_NAME=
+```
 
-首次安裝 Python 套件前，先安裝 `mysqlclient` 的系統編譯依賴（[官方安裝說明](https://github.com/PyMySQL/mysqlclient/blob/main/README.md)）：
+`DJANGO_ALLOWED_HOSTS` 只填主機名稱，不含協定、埠號或路徑。`DEBUG=false` 時未提供金鑰，程式會拒絕啟動。
+
+備份既有資料庫後，在專案根目錄執行：
+
+```powershell
+.\venv\Scripts\python.exe manage.py migrate
+.\venv\Scripts\python.exe manage.py collectstatic --noinput
+.\venv\Scripts\python.exe manage.py check --deploy
+.\venv\Scripts\waitress-serve.exe --listen=127.0.0.1:8000 --url-scheme=https config.wsgi:application
+```
+
+`--url-scheme=https` 適用於所有公開流量經 IIS HTTPS、HTTP 在 IIS 先轉向 HTTPS 的情境；此參數不會讓 Waitress 自行提供 TLS。IIS 須保留原始 Host，將路徑與查詢參數轉送至本機 8000 埠。其他代理架構請依 [Waitress 反向代理文件](https://docs.pylonsproject.org/projects/waitress/en/stable/reverse-proxy.html) 設定。
+
+目前 `settings.py` 尚未啟用 Secure Cookie，也未讀取 `DJANGO_SESSION_COOKIE_SECURE` 等環境變數，僅在 `.env` 加入這些名稱不會生效。正式 HTTPS 環境需另在設定中啟用 `SESSION_COOKIE_SECURE`、`CSRF_COOKIE_SECURE`，並依 [Django 部署檢查清單](https://docs.djangoproject.com/en/stable/howto/deployment/checklist/) 處理檢查結果；本機 HTTP 開發不應直接套用只允許 HTTPS 的設定。
+
+以 Windows 服務包裝工具管理 Waitress，設定專案根目錄為工作目錄、自動啟動、失敗重啟與日誌。服務啟動前先停止手動執行的 Waitress，避免 8000 埠衝突。IIS 憑證、反向代理與服務註冊須在 Server 另行完成。
+
+## Linux 部署與靜態檔案
+
+Ubuntu 首次安裝 `mysqlclient` 前可能需要系統編譯依賴：
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y python3-dev default-libmysqlclient-dev build-essential pkg-config
+python3 -m venv venv
+./venv/bin/python -m pip install -r requirements.txt
+./venv/bin/python manage.py migrate
+./venv/bin/python manage.py collectstatic --noinput
+./venv/bin/gunicorn config.wsgi:application --bind 127.0.0.1:8000
 ```
 
-若在容器內，需在同一容器安裝；以 root 執行時省略 `sudo`。Python 開發標頭需符合虛擬環境的 Python 版本。缺少 `pkg-config` 時，`pip install` 會在編譯 `mysqlclient` 前失敗。
+先完成資料庫及正式環境變數設定；對外服務另配置反向代理、HTTPS 與服務管理。此版本未提供 `Dockerfile` 或 `compose.yaml`，不能直接執行 Docker Compose 部署。
 
-專案已啟用 WhiteNoise，由應用程式提供收集到 `staticfiles` 的 CSS、JS 與 Django admin 靜態檔案。Gunicorn 不會像開發用的 `runserver` 自動提供各 app 的靜態檔案，因此每次部署更新後，請在專案目錄、啟用 Ubuntu 的 Python 虛擬環境後執行：
+專案已啟用 WhiteNoise，提供收集至 `staticfiles/` 的資源。更新 JS／CSS 後重新執行 `collectstatic`、重啟應用服務，再重新整理瀏覽器。若代理另行接管 `/static/`，須指向此次部署的檔案。
 
-```bash
-python -m pip install -r requirements.txt
-python manage.py collectstatic --noinput
-gunicorn config.wsgi:application --bind 0.0.0.0:8000
+若入口是 `/proxy/8000/`，且代理轉送時會移除此路徑前綴，設定：
+
+```dotenv
+FORCE_SCRIPT_NAME=/proxy/8000
 ```
 
-若 Gunicorn 已由 systemd 等服務管理，執行 `collectstatic` 後重啟原服務即可。可用 `curl -I http://127.0.0.1:8000/static/main/qi-tool.css` 確認回傳 200。若經過 Nginx，請讓 `/static/` 轉送至應用程式，或將其 alias 指向本次部署的 `staticfiles/`；錯誤的 Nginx 靜態檔案設定仍會造成 404。
+網站根目錄部署時留白；此設定取決於路徑及代理行為，與是否使用虛擬機無關。Google 回呼 URI 也須包含公開路徑前綴。
 
-若瀏覽器入口是 `http://localhost:8400/proxy/8000/`，且代理會移除 `/proxy/8000` 再轉送，請在 `.env` 設定 `FORCE_SCRIPT_NAME=/proxy/8000` 並重啟 Django/Gunicorn。這讓靜態檔案及站內連結帶上代理前綴；`STATIC_URL` 由設定中的 `FORCE_SCRIPT_NAME` 明確組成，避免靜態網址在初始化時漏掉前綴。直接用 8000 port 存取時則保持此變數空白。可在瀏覽器開啟 `http://localhost:8400/proxy/8000/static/main/qi-tool.css` 確認代理後的 CSS 能正常取得。
+## 測試與維護
 
-正式部署時需依環境設定 SECRET_KEY、DEBUG、ALLOWED_HOSTS。
-資源配置依循 [Django 靜態檔案文件](https://docs.djangoproject.com/en/dev/howto/static-files/)。
+安裝 Node.js 後，在開發／測試環境執行：
+
+```powershell
+.\venv\Scripts\python.exe manage.py check
+.\venv\Scripts\python.exe manage.py test apps.main apps.ICmanage apps.accounts config
+node apps/main/testdata/calculation.cjs
+node apps/main/testdata/request_flow.cjs
+node apps/ICmanage/testdata/curve_workbench.cjs
+```
+
+Django 測試會建立測試資料庫，帳號須有對應權限。測試涵蓋計算、Google 登入與權限、CSV／Excel 匯入、重複電壓、交易回滾與曲線互動；不代表正式 Google OAuth、IIS 或實際 Server 已通過驗證。
+
+| 狀況 | 檢查位置 |
+| --- | --- |
+| CSS／圖表更新未生效 | `collectstatic`、服務重啟、頁面 JS 版本及瀏覽器快取 |
+| `DisallowedHost` | `DJANGO_ALLOWED_HOSTS` 與代理傳送的 Host |
+| Google 回呼失敗 | 公開網址、HTTPS、路徑前綴與 OAuth 登記 URI 是否一致 |
+| 匯入後沒有新增資料 | 紅字是否列出全部重複電壓，或存在格式／名稱錯誤 |
+| MySQL 儲存結構錯誤 | 程式與資料庫 migration 是否同步；先備份，再檢查 `showmigrations` |
+
+定期備份資料庫，保存平台帳號與 IC 設定；刪除 IC 不會自動恢復原始資料。
+
+## 程式位置
+
+| 路徑 | 用途 |
+| --- | --- |
+| `config/settings.py`、`.env.example` | Django 與環境變數設定 |
+| `config/wsgi.py` | Waitress／Gunicorn 共用的 WSGI 入口 |
+| `apps/main/templates/main/index.html` | 主計算頁 |
+| `apps/main/static/main/qi-tool-calculation.js` | 計算與輸入驗證 |
+| `apps/main/static/main/qi-tool-*.js` | 互動、歷史、數位化與診斷 |
+| `apps/ICmanage/importer.py` | CSV／Excel 解析、電壓分組與數值驗證 |
+| `apps/ICmanage/forms.py`、`views.py` | 匯入重複判斷、儲存與訊息 |
+| `apps/ICmanage/models.py`、`catalog.py` | IC 模型與前端曲線目錄 |
+| `apps/ICmanage/static/ICmanage/curve-workbench.js` | SVG 曲線、軸刻度與點位互動 |
+| `apps/ICmanage/static/ICmanage/ic-manager.css` | 管理頁與圖表樣式 |
+| `apps/accounts/` | Google 認證、平台帳號與角色同步 |
+| `apps/main/curves.json` | 原始曲線基準，保留作比對 |

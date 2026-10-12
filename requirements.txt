@@ -5,7 +5,7 @@ mysqlclient
 python-dotenv
 drf-spectacular
 djangorestframework-simplejwt
-gunicorn
+waitress>=3.0.2,<4
 whitenoise
 openpyxl>=3.1.5,<4
 google-auth>=2.30,<3

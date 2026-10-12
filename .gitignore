@@ -134,7 +134,7 @@ docker-compose.override.yml
 *.dump
 *.bak
 
-output/
+outputs/
 docs/
 *.csv
 *.xlsx

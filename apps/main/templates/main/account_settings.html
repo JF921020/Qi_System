@@ -13,7 +13,7 @@
         <dt>登入方式</dt><dd>Google</dd>
     </dl>
     {% endif %}
-    <p>角色：{% if user.is_superuser %}系統管理者{% elif user.is_staff %}管理者{% else %}檢視者{% endif %}</p>
+    <p>權限：{% if user.is_superuser %}系統管理者{% elif user.is_staff %}管理者{% else %}檢視者{% endif %}</p>
     <div class="actions">
         {% if user.is_superuser %}<a class="button" href="{% url 'admin:accounts_platformuser_changelist' %}">帳號管理</a>{% endif %}
         <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">登出</button></form>

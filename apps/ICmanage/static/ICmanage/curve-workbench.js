@@ -37,7 +37,7 @@
             const hideChart = !data.length || !valid;
             chart.toggleAttribute('hidden', hideChart);
             find('[data-chart-note]').textContent = !valid ? '含空白或無效數值，請修正資料點後再顯示趨勢圖。' :
-                !data.length ? '沒有可繪製的資料點。' : `趨勢圖顯示搜尋結果全部 ${data.length} 點，不受分頁影響；依 X 遞增連線。`;
+                !data.length ? '沒有可繪製的資料點。' : `趨勢圖顯示搜尋結果全部 ${data.length} 點，不受分頁影響；依 X 遞增連線。滑鼠移到曲線附近可查看電流與效率。`;
             if (hideChart) return;
             const high = data[data.length - 1][0];
             const x = value => high === 0 ? 60 : 60 + value / high * 540;
@@ -57,11 +57,78 @@
             svg('polyline', {points: data.map(point => `${x(point[0])},${y(point[1])}`).join(' '), fill: 'none', stroke: '#4f46e5', 'stroke-width': 2});
             // Dense curves retain every line vertex; individual values remain in the paged table.
             if (data.length <= 300) data.forEach(point => {
-                const dot = svg('circle', {cx: x(point[0]), cy: y(point[1]), r: 3, fill: '#4f46e5'});
-                const tooltip = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-                tooltip.textContent = `${axisLabel()}: ${point[0]}；效率: ${point[1]}%`;
-                dot.appendChild(tooltip);
+                svg('circle', {cx: x(point[0]), cy: y(point[1]), r: 3, fill: '#4f46e5'});
             });
+
+            // Hover on any part of the curve (not just its vertices), including dense curves.
+            const coordinates = data.map(([current, efficiency]) => ({x: x(current), y: y(efficiency), current, efficiency}));
+            const hover = svg('g', {'pointer-events': 'none', visibility: 'hidden'});
+            const marker = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            Object.entries({r: 5, fill: '#ffffff', stroke: '#4f46e5', 'stroke-width': 2}).forEach(([k, v]) => marker.setAttribute(k, v));
+            hover.appendChild(marker);
+            const bubble = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            Object.entries({width: 174, height: 48, rx: 5, fill: '#1e293b'}).forEach(([k, v]) => bubble.setAttribute(k, v));
+            hover.appendChild(bubble);
+            const labels = [0, 1].map(index => {
+                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                Object.entries({'font-size': 12, fill: '#ffffff'}).forEach(([k, v]) => label.setAttribute(k, v));
+                hover.appendChild(label);
+                return label;
+            });
+            const format = value => Number(value.toPrecision(8)).toString();
+            const svgPoint = chart.createSVGPoint();
+            const nearestOnCurve = (px, py) => {
+                let closest = null;
+                const segments = Math.max(1, coordinates.length - 1);
+                for (let i = 0; i < segments; i++) {
+                    const a = coordinates[i], b = coordinates[Math.min(i + 1, coordinates.length - 1)];
+                    const dx = b.x - a.x, dy = b.y - a.y;
+                    const lengthSquared = dx * dx + dy * dy;
+                    const t = lengthSquared ? Math.max(0, Math.min(1, ((px - a.x) * dx + (py - a.y) * dy) / lengthSquared)) : 0;
+                    const cx = a.x + dx * t, cy = a.y + dy * t;
+                    const distanceSquared = (px - cx) ** 2 + (py - cy) ** 2;
+                    if (!closest || distanceSquared < closest.distanceSquared) {
+                        closest = {
+                            x: cx, y: cy,
+                            current: a.current + (b.current - a.current) * t,
+                            efficiency: a.efficiency + (b.efficiency - a.efficiency) * t,
+                            distanceSquared
+                        };
+                    }
+                }
+                return closest;
+            };
+            chart.onpointermove = event => {
+                const matrix = chart.getScreenCTM();
+                if (!matrix) return;
+                svgPoint.x = event.clientX;
+                svgPoint.y = event.clientY;
+                const pointer = svgPoint.matrixTransform(matrix.inverse());
+                const result = nearestOnCurve(pointer.x, pointer.y);
+                if (!result || result.distanceSquared > 12 ** 2) {
+                    hover.setAttribute('visibility', 'hidden');
+                    return;
+                }
+                marker.setAttribute('cx', result.x);
+                marker.setAttribute('cy', result.y);
+                const boxX = Math.max(5, Math.min(640 - 174 - 5, result.x + 12));
+                const boxY = result.y < 64 ? result.y + 12 : result.y - 58;
+                bubble.setAttribute('x', boxX);
+                bubble.setAttribute('y', boxY);
+                // 電流 mA：四捨五入至整數
+                labels[0].textContent =
+                    `${axisLabel()}: ${Math.round(result.current)} mA`;
+
+                // 效率：保留小數點後兩位
+                labels[1].textContent =
+                    `效率: ${result.efficiency.toFixed(2)}%`;
+                labels.forEach((label, index) => {
+                    label.setAttribute('x', boxX + 10);
+                    label.setAttribute('y', boxY + 19 + index * 17);
+                });
+                hover.setAttribute('visibility', 'visible');
+            };
+            chart.onpointerleave = () => hover.setAttribute('visibility', 'hidden');
         }
         function render() {
             const matches = selected();

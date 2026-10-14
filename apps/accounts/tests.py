@@ -2,6 +2,7 @@ from unittest.mock import Mock, patch
 from urllib.parse import parse_qs, urlsplit
 
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -47,8 +48,9 @@ class GoogleLoginTests(TestCase):
         self.assertTrue(account.auth_user.is_staff)
         self.assertFalse(account.auth_user.has_usable_password())
         self.assertEqual(int(self.client.session["_auth_user_id"]), account.auth_user_id)
+        self.assertRegex(account.public_id, r"^[0-9]{8}[A-Za-z0-9]{4}$")
         settings_page = self.client.get(reverse("main:account-settings"))
-        self.assertContains(settings_page, f"<dd>{account.id}</dd>", html=True)
+        self.assertContains(settings_page, account.public_id)
         self.assertContains(settings_page, "alice@example.com")
 
     def test_returning_user_maps_to_same_id_and_follows_email_change(self):
@@ -60,6 +62,48 @@ class GoogleLoginTests(TestCase):
         account = PlatformUser.objects.get()
         self.assertEqual((account.id, account.email, account.username), (first.id, "alice.new@example.com", "alice"))
         self.assertEqual(account.auth_user.email, "alice.new@example.com")
+        self.assertEqual(account.public_id, first.public_id)
+
+    def test_username_keeps_unique_id_across_logins_and_rename(self):
+        google_login(self.client, claims("alice@example.com", "1"))
+        first = PlatformUser.objects.get(username="alice")
+        self.client.post(reverse("logout"))
+        google_login(self.client, claims("alice@other.org", "2"))
+        second = PlatformUser.objects.get(username="alice-2")
+        self.assertNotEqual(first.id, second.id)
+        self.assertNotEqual(first.public_id, second.public_id)
+        self.assertRegex(second.public_id, r"^[0-9]{8}[A-Za-z0-9]{4}$")
+        self.client.post(reverse("logout"))
+
+        google_login(self.client, claims("alice@example.com", "1"))
+        self.assertEqual(PlatformUser.objects.get(username="alice").id, first.id)
+        self.assertEqual(PlatformUser.objects.get(username="alice").public_id, first.public_id)
+        first.username = "alice-renamed"
+        first.save(update_fields=["username"])
+        self.client.post(reverse("logout"))
+        google_login(self.client, claims("alice@example.com", "1"))
+        self.assertEqual(PlatformUser.objects.get(username="alice-renamed").id, first.id)
+        self.assertEqual(PlatformUser.objects.get(username="alice-renamed").public_id, first.public_id)
+        self.assertEqual(PlatformUser.objects.count(), 2)
+        page = self.client.get(reverse("main:account-settings"))
+        self.assertContains(page, "alice-renamed")
+        self.assertContains(page, first.public_id)
+
+    def test_public_id_is_unique_at_database_level(self):
+        google_login(self.client, claims("alice@example.com", "1"))
+        first = PlatformUser.objects.get()
+        self.client.post(reverse("logout"))
+        google_login(self.client, claims("bob@example.com", "2"))
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            PlatformUser.objects.filter(username="bob").update(public_id=first.public_id)
+
+    def test_existing_short_id_is_preserved_on_login(self):
+        google_login(self.client, claims())
+        legacy_id = "26102013A7k2"
+        PlatformUser.objects.update(public_id=legacy_id)
+        self.client.post(reverse("logout"))
+        google_login(self.client, claims())
+        self.assertEqual(PlatformUser.objects.get().public_id, legacy_id)
 
     def test_username_collision_and_email_owned_by_other_google_account(self):
         google_login(self.client, claims("alice@example.com", "1"))
@@ -143,7 +187,7 @@ class GoogleLoginTests(TestCase):
         })
         self.assertEqual(response.status_code, 302)
         item.refresh_from_db()
-        self.assertEqual(item.updated_by_id, account.id)
+        self.assertEqual(item.updated_by_id, account.public_id)
         self.assertEqual(list(account.ic_settings.all()), [item])
         self.assertContains(self.client.get(reverse("ICmanage:ic-list", args=["rx"])), "alice")
         account.delete()

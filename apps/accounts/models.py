@@ -1,5 +1,8 @@
 from django.conf import settings
-from django.db import models
+from django.db import IntegrityError, models, router, transaction
+from django.utils import timezone
+
+from .identifiers import generate_public_id
 
 
 class PlatformUser(models.Model):
@@ -11,12 +14,13 @@ class PlatformUser(models.Model):
 
     email = models.EmailField("信箱", unique=True)
     username = models.CharField("使用者名稱", max_length=150, unique=True)
+    public_id = models.CharField("平台使用者 ID", max_length=187, unique=True, editable=False)
     google_sub = models.CharField("Google 帳號識別碼", max_length=255, unique=True, editable=False)
     role = models.CharField("角色", max_length=10, choices=Role.choices, default=Role.ADMIN)
     is_active = models.BooleanField("啟用", default=True)
     # Django session/admin still require auth.User; it is an internal mapping only, never logged in by password.
     auth_user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
-                                     related_name="platform_user", editable=False)
+                                    related_name="platform_user", editable=False)
     created_at = models.DateTimeField("建立時間", auto_now_add=True)
     last_login_at = models.DateTimeField("最後登入", null=True, blank=True, editable=False)
 
@@ -34,7 +38,26 @@ class PlatformUser(models.Model):
 
     def save(self, *args, **kwargs):
         self.email = self.email.strip().lower()
-        super().save(*args, **kwargs)
+        if self._state.adding and not self.public_id:
+            verified_at = self.last_login_at or timezone.now()
+            database = kwargs.get("using") or router.db_for_write(type(self), instance=self)
+            accounts = type(self).objects.using(database)
+            for _ in range(10):
+                self.public_id = generate_public_id(verified_at)
+                if accounts.filter(public_id__iexact=self.public_id).exists():
+                    continue
+                try:
+                    # A savepoint keeps the login transaction usable after a collision.
+                    with transaction.atomic(using=database):
+                        super().save(*args, **kwargs)
+                    break
+                except IntegrityError:
+                    if not accounts.filter(public_id__iexact=self.public_id).exists():
+                        raise
+            else:
+                raise IntegrityError("Unable to allocate a unique platform user ID after 10 attempts.")
+        else:
+            super().save(*args, **kwargs)
         self.sync_auth_user()
 
     def sync_auth_user(self):

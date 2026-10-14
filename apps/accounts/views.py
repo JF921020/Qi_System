@@ -64,5 +64,5 @@ def google_callback(request):
     except google.GoogleAuthError as error:
         return login_page(request, str(error), 403)
     login(request, account.auth_user, backend="django.contrib.auth.backends.ModelBackend")
-    messages.success(request, f"{'已建立平台帳號並' if created else '已'}以 {account.email} 登入（ID {account.id}）。")
+    messages.success(request, f"{'已建立平台帳號並' if created else '已'}以 {account.email} 登入（ID {account.public_id}）。")
     return redirect(flow["next"])

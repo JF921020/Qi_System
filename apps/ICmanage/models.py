@@ -28,11 +28,10 @@ class ICSetting(models.Model):
     efficiency = models.FloatField("固定效率 (%)", null=True, blank=True)
     points = models.JSONField("曲線資料點", default=list, blank=True)
     voltage = models.FloatField("工作電壓 (V)", null=True, blank=True)
-    provisional = models.BooleanField("暫定數據（尚未驗證）", default=True)
     source = models.CharField("資料來源／量測條件", max_length=500, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey("accounts.PlatformUser", verbose_name="最後修改者", null=True, blank=True,
-                                   editable=False, on_delete=models.SET_NULL, related_name="ic_settings")
+                                to_field="public_id", editable=False, on_delete=models.SET_NULL, related_name="ic_settings")
 
     class Meta:
         db_table = "main_icsetting"

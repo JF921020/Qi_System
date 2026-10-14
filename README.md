@@ -68,10 +68,24 @@ FORCE_SCRIPT_NAME=
 ```powershell
 .\venv\Scripts\python.exe manage.py migrate
 .\venv\Scripts\python.exe manage.py check
-.\venv\Scripts\python.exe manage.py runserver
+.\venv\Scripts\python.exe manage.py collectstatic --noinput
+.\start-server.ps1
 ```
 
-開啟 <http://127.0.0.1:8000/>。`runserver` 用於開發，正式服務請參考下方部署方式。
+開啟 <http://127.0.0.1:8000/>。啟動腳本使用專案 `venv` 內的 Waitress，預設只監聽本機 8000 埠，不需要先啟用虛擬環境。按 Ctrl+C 停止；修改 Python 或模板後需重啟，修改靜態資源後需重新執行 `collectstatic` 並重啟。若開發時需要自動重新載入，可另用 `python manage.py runserver`。
+
+服務啟動後可在另一個 PowerShell 視窗檢查，兩者應回傳 HTTP 200：
+
+```powershell
+curl.exe -s -o NUL -w "%{http_code}\n" http://127.0.0.1:8000/accounts/login/
+curl.exe -I http://127.0.0.1:8000/static/main/qi-tool.css
+```
+
+若 PowerShell 執行原則不允許腳本，可直接使用相同的啟動命令，不必修改系統執行原則：
+
+```powershell
+.\venv\Scripts\waitress-serve.exe --listen=127.0.0.1:8000 config.wsgi:application
+```
 
 ## Google 登入與權限
 
@@ -203,11 +217,10 @@ current_ma,efficiency_percent
 
 建議入口為「IIS HTTPS → 本機 Waitress → Django」。`config/wsgi.py` 與 `WSGI_APPLICATION` 可沿用。
 
-**目前 `requirements.txt` 仍列出 Gunicorn，尚未加入 Waitress，也沒有 Windows 服務安裝腳本。** Windows 原生部署請另外安裝 Waitress，不要以 Gunicorn 啟動 Windows 服務。
+`requirements.txt` 已使用 Waitress，Windows 與 Linux 共用同一份依賴。`start-server.ps1` 是前景啟動腳本，不會自動註冊 Windows 服務。Waitress 支援 Windows，參考 [官方文件](https://docs.pylonsproject.org/projects/waitress/en/stable/)。
 
 ```powershell
 .\venv\Scripts\python.exe -m pip install -r requirements.txt
-.\venv\Scripts\python.exe -m pip install waitress
 ```
 
 Server 的 `.env` 須填入正式資料庫、Google 憑證及下列值：
@@ -228,14 +241,14 @@ FORCE_SCRIPT_NAME=
 .\venv\Scripts\python.exe manage.py migrate
 .\venv\Scripts\python.exe manage.py collectstatic --noinput
 .\venv\Scripts\python.exe manage.py check --deploy
-.\venv\Scripts\waitress-serve.exe --listen=127.0.0.1:8000 --url-scheme=https config.wsgi:application
+.\start-server.ps1 -UrlScheme https
 ```
 
-`--url-scheme=https` 適用於所有公開流量經 IIS HTTPS、HTTP 在 IIS 先轉向 HTTPS 的情境；此參數不會讓 Waitress 自行提供 TLS。IIS 須保留原始 Host，將路徑與查詢參數轉送至本機 8000 埠。其他代理架構請依 [Waitress 反向代理文件](https://docs.pylonsproject.org/projects/waitress/en/stable/reverse-proxy.html) 設定。
+`-UrlScheme https` 會傳入 Waitress 的 `--url-scheme=https`，適用於所有公開流量經 IIS HTTPS、HTTP 在 IIS 先轉向 HTTPS 的情境；此參數不會讓 Waitress 自行提供 TLS。IIS 須保留原始 Host，將路徑與查詢參數轉送至本機 8000 埠。其他代理架構請依 [Waitress 反向代理文件](https://docs.pylonsproject.org/projects/waitress/en/stable/reverse-proxy.html) 設定。
 
 目前 `settings.py` 尚未啟用 Secure Cookie，也未讀取 `DJANGO_SESSION_COOKIE_SECURE` 等環境變數，僅在 `.env` 加入這些名稱不會生效。正式 HTTPS 環境需另在設定中啟用 `SESSION_COOKIE_SECURE`、`CSRF_COOKIE_SECURE`，並依 [Django 部署檢查清單](https://docs.djangoproject.com/en/stable/howto/deployment/checklist/) 處理檢查結果；本機 HTTP 開發不應直接套用只允許 HTTPS 的設定。
 
-以 Windows 服務包裝工具管理 Waitress，設定專案根目錄為工作目錄、自動啟動、失敗重啟與日誌。服務啟動前先停止手動執行的 Waitress，避免 8000 埠衝突。IIS 憑證、反向代理與服務註冊須在 Server 另行完成。
+以 Windows 服務包裝工具管理 Waitress：執行檔設為 `<專案路徑>\venv\Scripts\waitress-serve.exe`，IIS HTTPS 部署參數設為 `--listen=127.0.0.1:8000 --url-scheme=https config.wsgi:application`。設定專案根目錄為工作目錄、自動啟動、失敗重啟與日誌。服務啟動前先停止手動執行的 Waitress，避免 8000 埠衝突。IIS 憑證、反向代理與服務註冊須在 Server 另行完成。
 
 ## Linux 部署與靜態檔案
 
@@ -248,7 +261,7 @@ python3 -m venv venv
 ./venv/bin/python -m pip install -r requirements.txt
 ./venv/bin/python manage.py migrate
 ./venv/bin/python manage.py collectstatic --noinput
-./venv/bin/gunicorn config.wsgi:application --bind 127.0.0.1:8000
+./venv/bin/waitress-serve --listen=127.0.0.1:8000 config.wsgi:application
 ```
 
 先完成資料庫及正式環境變數設定；對外服務另配置反向代理、HTTPS 與服務管理。此版本未提供 `Dockerfile` 或 `compose.yaml`，不能直接執行 Docker Compose 部署。
@@ -292,7 +305,8 @@ Django 測試會建立測試資料庫，帳號須有對應權限。測試涵蓋�
 | 路徑 | 用途 |
 | --- | --- |
 | `config/settings.py`、`.env.example` | Django 與環境變數設定 |
-| `config/wsgi.py` | Waitress／Gunicorn 共用的 WSGI 入口 |
+| `start-server.ps1` | Windows Waitress 啟動腳本，預設 HTTP；IIS HTTPS 使用 `-UrlScheme https` |
+| `config/wsgi.py` | Waitress 使用的 WSGI 入口 |
 | `apps/main/templates/main/index.html` | 主計算頁 |
 | `apps/main/static/main/qi-tool-calculation.js` | 計算與輸入驗證 |
 | `apps/main/static/main/qi-tool-*.js` | 互動、歷史、數位化與診斷 |
